@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Sparkles } from "lucide-react";
-import anime from "animejs";
+import * as anime from 'animejs';
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -48,7 +48,7 @@ const Login = () => {
           "#FFD700", "#FFFFE0", "#FFFACD"
         ][Math.floor(Math.random() * 9)];
 
-        anime({
+        anime.default({
           targets: particle,
           top: "100vh",
           rotate: Math.random() * 360,
@@ -62,7 +62,7 @@ const Login = () => {
 
     // Animate card entrance
     if (cardRef.current) {
-      anime({
+      anime.default({
         targets: cardRef.current,
         opacity: [0, 1],
         translateY: [30, 0],
@@ -74,7 +74,7 @@ const Login = () => {
 
     // Animate logo
     if (logoRef.current) {
-      anime({
+      anime.default({
         targets: logoRef.current,
         rotate: [0, 360],
         duration: 2000,
@@ -92,7 +92,7 @@ const Login = () => {
     try {
       await loginUser(email, password);
       
-      anime({
+      anime.default({
         targets: cardRef.current,
         translateY: -30,
         opacity: 0,
@@ -117,7 +117,7 @@ const Login = () => {
       });
       
       // Shake animation on error
-      anime({
+      anime.default({
         targets: cardRef.current,
         translateX: [0, -10, 10, -10, 10, -5, 5, 0],
         duration: 600,
@@ -129,7 +129,7 @@ const Login = () => {
   };
 
   const handleInputFocus = (el: HTMLInputElement) => {
-    anime({
+    anime.default({
       targets: el,
       scale: [1, 1.03, 1],
       duration: 300,
