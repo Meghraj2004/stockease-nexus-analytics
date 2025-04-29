@@ -2,7 +2,7 @@
 import { SidebarProvider } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/AppSidebar';
 import { useEffect } from 'react';
-import * as anime from 'animejs';
+import anime from 'animejs/lib/anime.es.js';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -11,7 +11,7 @@ interface DashboardLayoutProps {
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   useEffect(() => {
     // Animate the main content entrance
-    anime.default({
+    anime({
       targets: '.dashboard-content',
       opacity: [0, 1],
       translateY: [10, 0],
