@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,9 @@ import { Label } from "@/components/ui/label";
 import { ShoppingCart, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, Timestamp, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, Timestamp, serverTimestamp, onSnapshot, query, orderBy, limit } from "firebase/firestore";
+import { InventoryItem, formatToRupees } from "@/types/inventory";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface SaleItem {
   id: string;
@@ -25,32 +27,85 @@ interface SaleItem {
 }
 
 const Sales = () => {
-  const [items, setItems] = useState<SaleItem[]>([
-    { id: "1", name: "Product A", price: 19.99, quantity: 1 },
-    { id: "2", name: "Product B", price: 29.99, quantity: 2 },
-  ]);
-  const [newItemName, setNewItemName] = useState("");
-  const [newItemPrice, setNewItemPrice] = useState("");
+  const [items, setItems] = useState<SaleItem[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [selectedItem, setSelectedItem] = useState<string>("");
   const [newItemQuantity, setNewItemQuantity] = useState("1");
   const [customerName, setCustomerName] = useState("");
   const [discount, setDiscount] = useState("0");
-  const [vatRate, setVatRate] = useState("15");
+  const [vatRate, setVatRate] = useState("18"); // GST in India is commonly 18%
   const [isProcessing, setIsProcessing] = useState(false);
+  const [recentSales, setRecentSales] = useState<any[]>([]);
   const { toast } = useToast();
+  
+  // Fetch inventory items for the dropdown
+  useEffect(() => {
+    const q = query(collection(db, "inventory"), orderBy("name"));
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const fetchedItems: InventoryItem[] = [];
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        fetchedItems.push({
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
+        } as InventoryItem);
+      });
+      
+      setInventoryItems(fetchedItems);
+    }, (error) => {
+      console.error("Error fetching inventory items:", error);
+    });
+    
+    return () => unsubscribe();
+  }, []);
+  
+  // Fetch recent sales
+  useEffect(() => {
+    const q = query(
+      collection(db, "sales"),
+      orderBy("timestamp", "desc"),
+      limit(5)
+    );
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const salesData: any[] = [];
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        salesData.push({
+          id: doc.id,
+          ...data,
+          timestamp: data.timestamp?.toDate() || new Date()
+        });
+      });
+      
+      setRecentSales(salesData);
+    });
+    
+    return () => unsubscribe();
+  }, []);
 
   const addItem = () => {
-    if (!newItemName || !newItemPrice) return;
+    if (!selectedItem) return;
+    
+    const inventoryItem = inventoryItems.find(item => item.id === selectedItem);
+    if (!inventoryItem) return;
+    
+    const quantity = parseInt(newItemQuantity) || 1;
     
     const newItem = {
-      id: Date.now().toString(),
-      name: newItemName,
-      price: parseFloat(newItemPrice),
-      quantity: parseInt(newItemQuantity) || 1,
+      id: inventoryItem.id,
+      name: inventoryItem.name,
+      price: inventoryItem.price,
+      quantity: quantity,
     };
     
     setItems([...items, newItem]);
-    setNewItemName("");
-    setNewItemPrice("");
+    setSelectedItem("");
     setNewItemQuantity("1");
   };
 
@@ -78,12 +133,22 @@ const Sales = () => {
   const total = afterDiscount + vatAmount;
 
   const processSale = async () => {
+    if (items.length === 0) {
+      toast({
+        title: "No Items",
+        description: "Please add items to the cart before completing the sale.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsProcessing(true);
     try {
       // Save transaction to Firestore
       await addDoc(collection(db, "sales"), {
         customerName: customerName || "Walk-in Customer",
         items: items.map(item => ({
+          id: item.id,
           name: item.name,
           price: item.price,
           quantity: item.quantity,
@@ -101,7 +166,7 @@ const Sales = () => {
       
       toast({
         title: "Sale Complete",
-        description: `Sale of $${total.toFixed(2)} has been processed successfully.`,
+        description: `Sale of ${formatToRupees(total)} has been processed successfully.`,
       });
       
       // Reset form
@@ -141,25 +206,29 @@ const Sales = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex space-x-2">
-                  <Input
-                    placeholder="Item name"
-                    value={newItemName}
-                    onChange={(e) => setNewItemName(e.target.value)}
-                  />
-                  <Input
-                    placeholder="Price"
-                    type="number"
-                    step="0.01"
-                    value={newItemPrice}
-                    onChange={(e) => setNewItemPrice(e.target.value)}
-                    className="w-24"
-                  />
+                  <div className="flex-1">
+                    <Select
+                      value={selectedItem}
+                      onValueChange={setSelectedItem}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an item" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {inventoryItems.map((item) => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {item.name} - {formatToRupees(item.price)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <Input
                     placeholder="Qty"
                     type="number"
                     value={newItemQuantity}
                     onChange={(e) => setNewItemQuantity(e.target.value)}
-                    className="w-16"
+                    className="w-20"
                   />
                   <Button onClick={addItem} size="icon">
                     <Plus className="h-4 w-4" />
@@ -181,7 +250,7 @@ const Sales = () => {
                           <div>
                             <p className="font-medium">{item.name}</p>
                             <p className="text-sm text-muted-foreground">
-                              ${item.price.toFixed(2)} each
+                              {formatToRupees(item.price)} each
                             </p>
                           </div>
                           <div className="flex items-center space-x-2">
@@ -229,6 +298,37 @@ const Sales = () => {
                 </div>
               </CardContent>
             </Card>
+            
+            {/* Recent Sales */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Transactions</CardTitle>
+                <CardDescription>
+                  Last 5 sales transactions
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {recentSales.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-4">
+                      No recent sales
+                    </p>
+                  ) : (
+                    recentSales.map((sale) => (
+                      <div key={sale.id} className="flex justify-between items-center border-b pb-2">
+                        <div>
+                          <p className="font-medium">{sale.customerName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(sale.timestamp).toLocaleString()}
+                          </p>
+                        </div>
+                        <p className="font-medium">{formatToRupees(sale.total)}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="space-y-6">
@@ -263,7 +363,7 @@ const Sales = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="vat">VAT Rate (%)</Label>
+                  <Label htmlFor="vat">GST Rate (%)</Label>
                   <Input
                     id="vat"
                     type="number"
@@ -276,19 +376,19 @@ const Sales = () => {
                 <div className="border-t pt-4 space-y-2">
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
-                    <span>${subtotal.toFixed(2)}</span>
+                    <span>{formatToRupees(subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-muted-foreground">
                     <span>Discount ({discount}%):</span>
-                    <span>-${discountAmount.toFixed(2)}</span>
+                    <span>-{formatToRupees(discountAmount)}</span>
                   </div>
                   <div className="flex justify-between text-muted-foreground">
-                    <span>VAT ({vatRate}%):</span>
-                    <span>${vatAmount.toFixed(2)}</span>
+                    <span>GST ({vatRate}%):</span>
+                    <span>{formatToRupees(vatAmount)}</span>
                   </div>
                   <div className="flex justify-between font-bold text-lg">
                     <span>Total:</span>
-                    <span>${total.toFixed(2)}</span>
+                    <span>{formatToRupees(total)}</span>
                   </div>
                 </div>
               </CardContent>

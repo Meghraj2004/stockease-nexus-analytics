@@ -1,7 +1,8 @@
 
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, User } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, serverTimestamp as firestoreTimestamp } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCm8oCRx8QqDZAu2Rwk-6bM3q4pEWtZbOc",
@@ -17,6 +18,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const storage = getStorage(app);
+export const serverTimestamp = firestoreTimestamp;
 
 // Auth functions
 export const registerUser = async (email: string, password: string) => {
@@ -29,4 +32,26 @@ export const loginUser = async (email: string, password: string) => {
 
 export const logoutUser = async () => {
   return signOut(auth);
+};
+
+// Date formatting helper
+export const formatDate = (date: Date): string => {
+  return date.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+};
+
+// Time formatting helper
+export const formatTime = (date: Date): string => {
+  return date.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+// Format date and time
+export const formatDateTime = (date: Date): string => {
+  return `${formatDate(date)} ${formatTime(date)}`;
 };

@@ -22,3 +22,23 @@ export const formatToRupees = (amount: number): string => {
     maximumFractionDigits: 2
   }).format(amount);
 };
+
+export interface SaleTransaction {
+  id: string;
+  customerName: string;
+  items: {
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    total: number;
+  }[];
+  subtotal: number;
+  discount: number;
+  discountAmount: number;
+  vatRate: number;
+  vatAmount: number;
+  total: number;
+  timestamp: Date;
+  createdBy: string;
+}

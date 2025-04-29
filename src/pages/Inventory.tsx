@@ -22,10 +22,17 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { InventoryItem } from "@/types/inventory";
+import { InventoryItem, formatToRupees } from "@/types/inventory";
 import { Package, Plus, Search } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, Timestamp, query, orderBy } from "firebase/firestore";
+import { 
+  collection, 
+  addDoc, 
+  Timestamp, 
+  query, 
+  orderBy, 
+  onSnapshot 
+} from "firebase/firestore";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -52,28 +59,42 @@ const Inventory = () => {
     const fetchInventory = async () => {
       try {
         const q = query(collection(db, "inventory"), orderBy("createdAt", "desc"));
-        const querySnapshot = await getDocs(q);
-        const fetchedItems: InventoryItem[] = [];
         
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          fetchedItems.push({
-            id: doc.id,
-            ...data,
-            createdAt: data.createdAt?.toDate() || new Date(),
-            updatedAt: data.updatedAt?.toDate() || new Date(),
-          } as InventoryItem);
+        // Set up real-time listener
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          const fetchedItems: InventoryItem[] = [];
+          
+          querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            fetchedItems.push({
+              id: doc.id,
+              ...data,
+              createdAt: data.createdAt?.toDate() || new Date(),
+              updatedAt: data.updatedAt?.toDate() || new Date(),
+            } as InventoryItem);
+          });
+          
+          setItems(fetchedItems);
+          setIsLoading(false);
+        }, (error) => {
+          console.error("Error fetching inventory:", error);
+          toast({
+            title: "Error",
+            description: "Failed to load inventory items.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
         });
         
-        setItems(fetchedItems);
+        // Clean up listener on component unmount
+        return () => unsubscribe();
       } catch (error) {
-        console.error("Error fetching inventory:", error);
+        console.error("Error setting up inventory listener:", error);
         toast({
           title: "Error",
-          description: "Failed to load inventory items.",
+          description: "Failed to set up real-time inventory updates.",
           variant: "destructive",
         });
-      } finally {
         setIsLoading(false);
       }
     };
@@ -85,7 +106,7 @@ const Inventory = () => {
     try {
       const currentTime = Timestamp.now();
       
-      const docRef = await addDoc(collection(db, "inventory"), {
+      await addDoc(collection(db, "inventory"), {
         ...newItem,
         price: Number(newItem.price),
         costPrice: Number(newItem.costPrice),
@@ -95,16 +116,7 @@ const Inventory = () => {
         updatedAt: currentTime,
       });
       
-      setItems([{
-        id: docRef.id,
-        ...newItem,
-        price: Number(newItem.price),
-        costPrice: Number(newItem.costPrice),
-        quantity: Number(newItem.quantity),
-        reorderLevel: Number(newItem.reorderLevel),
-        createdAt: currentTime.toDate(),
-        updatedAt: currentTime.toDate(),
-      } as InventoryItem, ...items]);
+      // No need to update state manually, the real-time listener will do it
       
       setNewItem({
         name: "",
@@ -222,7 +234,7 @@ const Inventory = () => {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="price" className="text-right">
-                    Price
+                    Price (₹)
                   </Label>
                   <Input
                     id="price"
@@ -234,7 +246,7 @@ const Inventory = () => {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="costPrice" className="text-right">
-                    Cost
+                    Cost (₹)
                   </Label>
                   <Input
                     id="costPrice"
@@ -325,13 +337,13 @@ const Inventory = () => {
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell>{item.sku}</TableCell>
                     <TableCell>{item.category}</TableCell>
-                    <TableCell className="text-right">${item.price.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{formatToRupees(item.price)}</TableCell>
                     <TableCell className="text-right">
                       <span className={item.quantity <= item.reorderLevel ? "text-red-500 font-medium" : ""}>
                         {item.quantity}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right">${(item.price * item.quantity).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{formatToRupees(item.price * item.quantity)}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm">
                         Edit
