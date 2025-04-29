@@ -9,10 +9,10 @@ interface DashboardLayoutProps {
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="min-h-screen flex w-full bg-gradient-to-br from-blue-50/30 via-white to-indigo-50/30">
         <AppSidebar />
         <main className="flex-1 overflow-auto">
-          <div className="container py-6">
+          <div className="container py-6 px-4 md:px-6">
             {children}
           </div>
         </main>

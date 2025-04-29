@@ -7,6 +7,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -33,26 +34,31 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Download, FileText, Printer } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
+import { formatToRupees } from "@/types/inventory";
 
 const Reports = () => {
   const [timeRange, setTimeRange] = useState("month");
+  const [exportLoading, setExportLoading] = useState(false);
 
   // Sample data - in a real app, this would be fetched from your database
   const monthlySalesData = [
-    { name: "Jan", sales: 4000 },
-    { name: "Feb", sales: 3000 },
-    { name: "Mar", sales: 2000 },
-    { name: "Apr", sales: 2780 },
-    { name: "May", sales: 1890 },
-    { name: "Jun", sales: 2390 },
-    { name: "Jul", sales: 3490 },
+    { name: "Jan", sales: 400000 },
+    { name: "Feb", sales: 300000 },
+    { name: "Mar", sales: 200000 },
+    { name: "Apr", sales: 278000 },
+    { name: "May", sales: 189000 },
+    { name: "Jun", sales: 239000 },
+    { name: "Jul", sales: 349000 },
   ];
 
   const topProducts = [
-    { name: "Product A", value: 400 },
-    { name: "Product B", value: 300 },
-    { name: "Product C", value: 300 },
-    { name: "Product D", value: 200 },
+    { name: "Product A", value: 40000 },
+    { name: "Product B", value: 30000 },
+    { name: "Product C", value: 30000 },
+    { name: "Product D", value: 20000 },
   ];
 
   const recentTransactions = [
@@ -61,91 +67,164 @@ const Reports = () => {
       date: "2023-04-23",
       customer: "John Doe",
       items: 3,
-      total: 152.5,
+      total: 15250,
     },
     {
       id: "2",
       date: "2023-04-22",
       customer: "Jane Smith",
       items: 2,
-      total: 89.99,
+      total: 8999,
     },
     {
       id: "3",
       date: "2023-04-21",
       customer: "Robert Johnson",
       items: 5,
-      total: 210.75,
+      total: 21075,
     },
     {
       id: "4",
       date: "2023-04-21",
       customer: "Maria Garcia",
       items: 1,
-      total: 49.99,
+      total: 4999,
     },
     {
       id: "5",
       date: "2023-04-20",
       customer: "David Chen",
       items: 4,
-      total: 175.25,
+      total: 17525,
     },
   ];
 
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
+
+  // Custom tooltip formatter for charts to show rupee format
+  const formatChartValue = (value: number) => {
+    return formatToRupees(value);
+  };
+
+  const handleExportPDF = () => {
+    setExportLoading(true);
+    // Simulate PDF export
+    setTimeout(() => {
+      setExportLoading(false);
+      toast({
+        title: "Report Exported",
+        description: "Sales report has been exported as PDF",
+      });
+    }, 1500);
+  };
+
+  const handleExportExcel = () => {
+    setExportLoading(true);
+    // Simulate Excel export
+    setTimeout(() => {
+      setExportLoading(false);
+      toast({
+        title: "Report Exported",
+        description: "Sales report has been exported as Excel",
+      });
+    }, 1500);
+  };
+
+  const handlePrint = () => {
+    window.print();
+    toast({
+      title: "Print Initiated",
+      description: "Sales report print dialog opened",
+    });
+  };
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">Sales Reports</h1>
+            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-stockease-600 to-stockease-800">
+              Sales Reports
+            </h1>
             <p className="text-muted-foreground">
               View and analyze your sales data
             </p>
           </div>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm font-medium">Time Period:</span>
-            <Select value={timeRange} onValueChange={setTimeRange}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="week">This Week</SelectItem>
-                <SelectItem value="month">This Month</SelectItem>
-                <SelectItem value="quarter">This Quarter</SelectItem>
-                <SelectItem value="year">This Year</SelectItem>
-                <SelectItem value="all">All Time</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium">Time Period:</span>
+              <Select value={timeRange} onValueChange={setTimeRange}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select range" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="week">This Week</SelectItem>
+                  <SelectItem value="month">This Month</SelectItem>
+                  <SelectItem value="quarter">This Quarter</SelectItem>
+                  <SelectItem value="year">This Year</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline" 
+                size="sm"
+                className="flex items-center gap-1"
+                onClick={handleExportPDF}
+                disabled={exportLoading}
+              >
+                <FileText size={16} />
+                <span>PDF</span>
+              </Button>
+              <Button
+                variant="outline" 
+                size="sm"
+                className="flex items-center gap-1"
+                onClick={handleExportExcel}
+                disabled={exportLoading}
+              >
+                <Download size={16} />
+                <span>Excel</span>
+              </Button>
+              <Button
+                variant="outline" 
+                size="sm"
+                className="flex items-center gap-1"
+                onClick={handlePrint}
+                disabled={exportLoading}
+              >
+                <Printer size={16} />
+                <span>Print</span>
+              </Button>
+            </div>
           </div>
         </div>
 
         <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="products">Products</TabsTrigger>
-            <TabsTrigger value="transactions">Transactions</TabsTrigger>
+          <TabsList className="bg-muted/50 p-1">
+            <TabsTrigger value="overview" className="rounded-md">Overview</TabsTrigger>
+            <TabsTrigger value="products" className="rounded-md">Products</TabsTrigger>
+            <TabsTrigger value="transactions" className="rounded-md">Transactions</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <Card className="overflow-hidden border-none shadow-md bg-gradient-to-br from-white to-blue-50">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-blue-50/50">
                   <CardTitle className="text-sm font-medium">
                     Total Sales
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">$12,345</div>
+                  <div className="text-2xl font-bold">{formatToRupees(1234500)}</div>
                   <p className="text-xs text-muted-foreground">
                     +18% from last period
                   </p>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <Card className="overflow-hidden border-none shadow-md bg-gradient-to-br from-white to-green-50">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-green-50/50">
                   <CardTitle className="text-sm font-medium">
                     Transactions
                   </CardTitle>
@@ -157,21 +236,21 @@ const Reports = () => {
                   </p>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <Card className="overflow-hidden border-none shadow-md bg-gradient-to-br from-white to-amber-50">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-amber-50/50">
                   <CardTitle className="text-sm font-medium">
                     Average Sale
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">$21.55</div>
+                  <div className="text-2xl font-bold">{formatToRupees(2155)}</div>
                   <p className="text-xs text-muted-foreground">
                     +12% from last period
                   </p>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <Card className="overflow-hidden border-none shadow-md bg-gradient-to-br from-white to-purple-50">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-purple-50/50">
                   <CardTitle className="text-sm font-medium">
                     Profit Margin
                   </CardTitle>
@@ -186,14 +265,14 @@ const Reports = () => {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <Card className="col-span-2 md:col-span-1">
-                <CardHeader>
+              <Card className="col-span-2 md:col-span-1 border-none shadow-md overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100/50">
                   <CardTitle>Sales Trend</CardTitle>
                   <CardDescription>
                     Monthly sales for the current year
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="pl-2">
+                <CardContent className="pt-6 pl-2">
                   <ResponsiveContainer width="100%" height={300}>
                     <LineChart
                       data={monthlySalesData}
@@ -206,13 +285,14 @@ const Reports = () => {
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
+                      <YAxis tickFormatter={formatChartValue} />
+                      <Tooltip formatter={formatChartValue} />
                       <Legend />
                       <Line
                         type="monotone"
                         dataKey="sales"
                         stroke="#0ea5e9"
+                        strokeWidth={2}
                         activeDot={{ r: 8 }}
                       />
                     </LineChart>
@@ -220,12 +300,12 @@ const Reports = () => {
                 </CardContent>
               </Card>
 
-              <Card className="col-span-2 md:col-span-1">
-                <CardHeader>
+              <Card className="col-span-2 md:col-span-1 border-none shadow-md overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-green-50 to-green-100/50">
                   <CardTitle>Top Products</CardTitle>
                   <CardDescription>Best selling products by revenue</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-6">
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
                       <Pie
@@ -245,7 +325,7 @@ const Reports = () => {
                           />
                         ))}
                       </Pie>
-                      <Tooltip />
+                      <Tooltip formatter={(value) => formatToRupees(Number(value))} />
                     </PieChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -254,22 +334,22 @@ const Reports = () => {
           </TabsContent>
 
           <TabsContent value="products" className="space-y-4">
-            <Card>
-              <CardHeader>
+            <Card className="border-none shadow-md overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-indigo-50 to-indigo-100/50">
                 <CardTitle>Product Performance</CardTitle>
                 <CardDescription>
                   Sales analysis by product
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 <ResponsiveContainer width="100%" height={400}>
                   <BarChart
                     data={[
-                      { product: "Product A", sales: 400, profit: 240 },
-                      { product: "Product B", sales: 300, profit: 139 },
-                      { product: "Product C", sales: 200, profit: 80 },
-                      { product: "Product D", sales: 278, profit: 150 },
-                      { product: "Product E", sales: 189, profit: 80 },
+                      { product: "Product A", sales: 40000, profit: 24000 },
+                      { product: "Product B", sales: 30000, profit: 13900 },
+                      { product: "Product C", sales: 20000, profit: 8000 },
+                      { product: "Product D", sales: 27800, profit: 15000 },
+                      { product: "Product E", sales: 18900, profit: 8000 },
                     ]}
                     margin={{
                       top: 20,
@@ -280,20 +360,26 @@ const Reports = () => {
                   >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="product" />
-                    <YAxis />
-                    <Tooltip />
+                    <YAxis tickFormatter={formatChartValue} />
+                    <Tooltip formatter={(value) => formatToRupees(Number(value))} />
                     <Legend />
-                    <Bar dataKey="sales" fill="#0ea5e9" name="Sales ($)" />
-                    <Bar dataKey="profit" fill="#22c55e" name="Profit ($)" />
+                    <Bar dataKey="sales" fill="#0ea5e9" name="Sales (₹)" />
+                    <Bar dataKey="profit" fill="#22c55e" name="Profit (₹)" />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
+              <CardFooter className="bg-gray-50/50 flex justify-end">
+                <Button variant="outline" size="sm" className="flex items-center gap-1" onClick={handleExportExcel}>
+                  <Download size={16} />
+                  <span>Export Product Data</span>
+                </Button>
+              </CardFooter>
             </Card>
           </TabsContent>
 
           <TabsContent value="transactions" className="space-y-4">
-            <Card>
-              <CardHeader>
+            <Card className="border-none shadow-md overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-cyan-50 to-cyan-100/50">
                 <CardTitle>Recent Transactions</CardTitle>
                 <CardDescription>
                   Your most recent sales transactions
@@ -319,14 +405,20 @@ const Reports = () => {
                         <TableCell>{transaction.date}</TableCell>
                         <TableCell>{transaction.customer}</TableCell>
                         <TableCell>{transaction.items}</TableCell>
-                        <TableCell className="text-right">
-                          ${transaction.total.toFixed(2)}
+                        <TableCell className="text-right font-medium">
+                          {formatToRupees(transaction.total)}
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </CardContent>
+              <CardFooter className="bg-gray-50/50 flex justify-end">
+                <Button variant="outline" size="sm" className="flex items-center gap-1" onClick={handleExportExcel}>
+                  <Download size={16} />
+                  <span>Export Transactions</span>
+                </Button>
+              </CardFooter>
             </Card>
           </TabsContent>
         </Tabs>

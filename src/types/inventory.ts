@@ -13,3 +13,12 @@ export interface InventoryItem {
   createdAt: Date | string;
   updatedAt: Date | string;
 }
+
+// Helper function for rupee formatting
+export const formatToRupees = (amount: number): string => {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2
+  }).format(amount);
+};
