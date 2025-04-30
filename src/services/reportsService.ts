@@ -1,3 +1,4 @@
+
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy, limit, where, Timestamp, getDocs } from "firebase/firestore";
 import { useState, useEffect } from "react";
@@ -70,259 +71,171 @@ export const useSalesReportData = (timeRange: string) => {
         startDate.setMonth(now.getMonth() - 1);
     }
 
-    // Check if collections exist and have data
-    const fetchInitialData = async () => {
-      try {
-        // Check sales collection
-        const salesRef = collection(db, "sales");
-        const salesSnapshot = await getDocs(query(salesRef, limit(1)));
-        const hasSales = !salesSnapshot.empty;
-        
-        // Check products collection
-        const productsRef = collection(db, "products");
-        const productsSnapshot = await getDocs(query(productsRef, limit(1)));
-        const hasProducts = !productsSnapshot.empty;
-        
-        // If no data, generate sample data
-        if (!hasSales && !hasProducts) {
-          const sampleData = generateSampleReportData();
-          setData(sampleData);
+    // Real-time listener for sales data
+    const salesRef = collection(db, "sales");
+    const salesQuery = query(
+      salesRef,
+      where("timestamp", ">=", Timestamp.fromDate(startDate)),
+      where("timestamp", "<=", Timestamp.fromDate(now)),
+      orderBy("timestamp", "desc")
+    );
+    
+    try {
+      // Set up real-time listener for sales data
+      const unsubscribe = onSnapshot(salesQuery, (snapshot) => {
+        if (snapshot.empty) {
+          // If no data, provide sample data
+          provideDefaultData();
           setIsLoading(false);
           return;
         }
         
-        // Otherwise set up real-time listeners
-        setupRealTimeListeners(startDate, now);
-      } catch (err: any) {
-        console.error("Error checking collections:", err);
+        // Process sales data
+        const processedData = processSalesData(snapshot.docs);
+        setData(processedData);
+        setIsLoading(false);
+      }, (err) => {
+        console.error("Error in sales report listener:", err);
         setError(err.message);
         setIsLoading(false);
-        
-        // Fallback to sample data
-        const sampleData = generateSampleReportData();
-        setData(sampleData);
-      }
-    };
-    
-    // Generate sample data for demo purposes
-    const generateSampleReportData = (): SalesReport => {
-      // Sample monthly sales
-      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      const monthlySalesData = months.map(month => ({
-        name: month,
-        sales: Math.floor(Math.random() * 10000) + 5000
-      }));
+        provideDefaultData();
+      });
       
-      // Sample top products
-      const sampleProducts = [
-        { name: "Laptop", value: 45000 },
-        { name: "Smartphone", value: 35000 },
-        { name: "Tablet", value: 25000 },
-        { name: "Headphones", value: 15000 },
-        { name: "Smartwatch", value: 10000 }
-      ];
-      
-      // Sample transactions
-      const sampleTransactions = Array.from({ length: 5 }, (_, i) => ({
-        id: `INV${10001 + i}`,
-        date: new Date(Date.now() - i * 86400000).toISOString().split('T')[0],
-        customer: `Customer ${i + 1}`,
-        items: Math.floor(Math.random() * 5) + 1,
-        total: Math.floor(Math.random() * 5000) + 1000
-      }));
-      
-      // Calculate summary
-      const totalSales = monthlySalesData.reduce((sum, item) => sum + item.sales, 0);
-      
-      return {
-        monthlySalesData,
-        topProducts: sampleProducts,
-        recentTransactions: sampleTransactions,
-        summary: {
-          totalSales,
-          transactions: 145,
-          averageSale: Math.round(totalSales / 145),
-          profitMargin: 38.5
-        }
-      };
-    };
-    
-    // Set up real-time listeners for all data
-    const setupRealTimeListeners = (startDate: Date, now: Date) => {
-      // Query for sales data
-      const salesRef = collection(db, "sales");
-      const salesQuery = query(
-        salesRef,
-        where("date", ">=", Timestamp.fromDate(startDate)),
-        where("date", "<=", Timestamp.fromDate(now)),
-        orderBy("date", "desc")
-      );
-
-      // Query for products data
-      const productsRef = collection(db, "products");
-      const productsQuery = query(
-        productsRef,
-        orderBy("sales", "desc"),
-        limit(5)
-      );
-
-      // Query for transactions
-      const transactionsQuery = query(
-        salesRef,
-        orderBy("date", "desc"),
-        limit(5)
-      );
-
-      try {
-        // Set up real-time listeners
-        const unsubSales = onSnapshot(salesQuery, (snapshot) => {
-          const monthlySales: Record<string, number> = {};
-          let totalSales = 0;
-          let transactionCount = 0;
-          
-          snapshot.docs.forEach(doc => {
-            const sale = doc.data();
-            const date = sale.date?.toDate();
-            
-            // Skip if date is invalid
-            if (!date) return;
-            
-            const monthYear = `${date.toLocaleString('default', { month: 'short' })}`;
-            
-            if (!monthlySales[monthYear]) {
-              monthlySales[monthYear] = 0;
-            }
-            
-            monthlySales[monthYear] += sale.total || 0;
-            totalSales += sale.total || 0;
-            transactionCount++;
-          });
-          
-          // Convert to array format needed for charts
-          const unsortedData = Object.keys(monthlySales).map(month => ({
-            name: month,
-            sales: monthlySales[month]
-          }));
-          
-          // Sort by month order
-          const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-          const monthlySalesData = unsortedData.sort((a, b) => 
-            monthOrder.indexOf(a.name) - monthOrder.indexOf(b.name)
-          );
-          
-          // Update state with monthly sales and summary data
-          setData(prev => ({
-            ...prev,
-            monthlySalesData,
-            summary: {
-              ...prev.summary,
-              totalSales,
-              transactions: transactionCount,
-              averageSale: transactionCount > 0 ? totalSales / transactionCount : 0,
-              // Assuming profit margin is 40% of sales
-              profitMargin: 40.0
-            }
-          }));
-        }, (error) => {
-          console.error("Error in sales listener:", error);
-        });
-        
-        const unsubProducts = onSnapshot(productsQuery, (snapshot) => {
-          if (snapshot.empty) {
-            // If no products exist, generate sample data
-            const sampleProducts = [
-              { name: "Laptop", value: 45000 },
-              { name: "Smartphone", value: 35000 },
-              { name: "Tablet", value: 25000 },
-              { name: "Headphones", value: 15000 },
-              { name: "Smartwatch", value: 10000 }
-            ];
-            
-            setData(prev => ({
-              ...prev,
-              topProducts: sampleProducts
-            }));
-            return;
-          }
-          
-          const topProducts = snapshot.docs.map(doc => {
-            const product = doc.data();
-            return {
-              name: product.name || "Unknown Product",
-              value: product.sales || 0,
-            };
-          });
-          
-          // Update state with top products
-          setData(prev => ({
-            ...prev,
-            topProducts
-          }));
-        }, (error) => {
-          console.error("Error in products listener:", error);
-        });
-        
-        const unsubTransactions = onSnapshot(transactionsQuery, (snapshot) => {
-          if (snapshot.empty) {
-            // If no transactions exist, generate sample data
-            const sampleTransactions = Array.from({ length: 5 }, (_, i) => ({
-              id: `INV${10001 + i}`,
-              date: new Date(Date.now() - i * 86400000).toISOString().split('T')[0],
-              customer: `Customer ${i + 1}`,
-              items: Math.floor(Math.random() * 5) + 1,
-              total: Math.floor(Math.random() * 5000) + 1000
-            }));
-            
-            setData(prev => ({
-              ...prev,
-              recentTransactions: sampleTransactions
-            }));
-            setIsLoading(false);
-            return;
-          }
-          
-          const recentTransactions = snapshot.docs.map(doc => {
-            const transaction = doc.data();
-            return {
-              id: doc.id,
-              date: transaction.date ? transaction.date.toDate().toISOString().split('T')[0] : '',
-              customer: transaction.customer || 'Guest',
-              items: transaction.items || 0,
-              total: transaction.total || 0,
-            };
-          });
-          
-          // Update state with recent transactions
-          setData(prev => ({
-            ...prev,
-            recentTransactions
-          }));
-          
-          setIsLoading(false);
-        }, (error) => {
-          console.error("Error in transactions listener:", error);
-          setIsLoading(false);
-        });
-        
-        // Clean up listeners on unmount
-        return () => {
-          unsubSales();
-          unsubProducts();
-          unsubTransactions();
-        };
-      } catch (err: any) {
-        console.error("Error setting up sales report listeners:", err);
-        setError(err.message);
-        setIsLoading(false);
-        
-        // Fallback to sample data
-        const sampleData = generateSampleReportData();
-        setData(sampleData);
-      }
-    };
-
-    fetchInitialData();
+      return () => unsubscribe();
+    } catch (err: any) {
+      console.error("Error setting up sales report listeners:", err);
+      setError(err.message);
+      setIsLoading(false);
+      provideDefaultData();
+    }
   }, [timeRange]);
+
+  // Helper function to process sales data
+  const processSalesData = (docs: any[]) => {
+    // Process monthly sales data
+    const monthlySales: Record<string, number> = {};
+    
+    // Process top products data
+    const productSales: Record<string, number> = {};
+    
+    // Process transactions
+    const transactions: Transaction[] = [];
+    
+    let totalSales = 0;
+    const transactionCount = docs.length;
+    
+    docs.forEach((doc, index) => {
+      const sale = doc.data();
+      const date = sale.timestamp?.toDate();
+      
+      if (!date) return;
+      
+      // For monthly sales
+      const monthName = date.toLocaleString('default', { month: 'short' });
+      if (!monthlySales[monthName]) {
+        monthlySales[monthName] = 0;
+      }
+      monthlySales[monthName] += sale.total || 0;
+      
+      // For total sales
+      totalSales += sale.total || 0;
+      
+      // For product sales
+      if (sale.items && Array.isArray(sale.items)) {
+        sale.items.forEach((item: any) => {
+          if (!item.name) return;
+          
+          if (!productSales[item.name]) {
+            productSales[item.name] = 0;
+          }
+          
+          productSales[item.name] += item.total || 0;
+        });
+      }
+      
+      // For recent transactions (only first 5)
+      if (index < 5) {
+        transactions.push({
+          id: doc.id,
+          date: date ? date.toISOString().split('T')[0] : '',
+          customer: sale.customer || 'Guest',
+          items: sale.items?.length || 0,
+          total: sale.total || 0,
+        });
+      }
+    });
+    
+    // Format monthly sales for chart
+    const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthlySalesData = Object.keys(monthlySales).map(month => ({
+      name: month,
+      sales: monthlySales[month]
+    })).sort((a, b) => monthOrder.indexOf(a.name) - monthOrder.indexOf(b.name));
+    
+    // Format top products for chart
+    const topProducts = Object.keys(productSales)
+      .map(name => ({ name, value: productSales[name] }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+    
+    // Calculate summary data
+    const averageSale = transactionCount > 0 ? totalSales / transactionCount : 0;
+    
+    return {
+      monthlySalesData,
+      topProducts,
+      recentTransactions: transactions,
+      summary: {
+        totalSales,
+        transactions: transactionCount,
+        averageSale,
+        profitMargin: 40.0 // Using a default profit margin
+      }
+    };
+  };
+
+  // Helper function to provide default sample data
+  const provideDefaultData = () => {
+    // Sample monthly sales
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthlySalesData = months.map(month => ({
+      name: month,
+      sales: Math.floor(Math.random() * 10000) + 5000
+    }));
+    
+    // Sample top products
+    const sampleProducts = [
+      { name: "Laptop", value: 45000 },
+      { name: "Smartphone", value: 35000 },
+      { name: "Tablet", value: 25000 },
+      { name: "Headphones", value: 15000 },
+      { name: "Smartwatch", value: 10000 }
+    ];
+    
+    // Sample transactions
+    const sampleTransactions = Array.from({ length: 5 }, (_, i) => ({
+      id: `INV${10001 + i}`,
+      date: new Date(Date.now() - i * 86400000).toISOString().split('T')[0],
+      customer: `Customer ${i + 1}`,
+      items: Math.floor(Math.random() * 5) + 1,
+      total: Math.floor(Math.random() * 5000) + 1000
+    }));
+    
+    // Calculate summary
+    const totalSales = monthlySalesData.reduce((sum, item) => sum + item.sales, 0);
+    
+    setData({
+      monthlySalesData,
+      topProducts: sampleProducts,
+      recentTransactions: sampleTransactions,
+      summary: {
+        totalSales,
+        transactions: 145,
+        averageSale: Math.round(totalSales / 145),
+        profitMargin: 38.5
+      }
+    });
+  };
 
   // Export functions for reports
   const exportToPDF = () => {
