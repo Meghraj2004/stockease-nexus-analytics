@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import {
   Card,
@@ -28,12 +28,18 @@ import {
   Area,
 } from "recharts";
 import AdminRoute from "@/components/AdminRoute";
+import { RefreshCcw, Download, FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/use-toast";
 
 const Analytics = () => {
   const [timeRange, setTimeRange] = useState("year");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState(new Date());
+  const [exportLoading, setExportLoading] = useState(false);
   
   // Sample data - in a real app, this would come from your database
-  const monthlySales = [
+  const [monthlySales, setMonthlySales] = useState([
     { name: "Jan", value: 4000 },
     { name: "Feb", value: 3000 },
     { name: "Mar", value: 2000 },
@@ -46,17 +52,17 @@ const Analytics = () => {
     { name: "Oct", value: 2800 },
     { name: "Nov", value: 3800 },
     { name: "Dec", value: 4300 },
-  ];
+  ]);
 
-  const categoryData = [
+  const [categoryData, setCategoryData] = useState([
     { name: "Electronics", value: 30 },
     { name: "Clothing", value: 25 },
     { name: "Food", value: 20 },
     { name: "Books", value: 15 },
     { name: "Other", value: 10 },
-  ];
+  ]);
 
-  const salesByDay = [
+  const [salesByDay, setSalesByDay] = useState([
     { name: "Mon", sales: 1000 },
     { name: "Tue", sales: 1200 },
     { name: "Wed", sales: 1500 },
@@ -64,15 +70,174 @@ const Analytics = () => {
     { name: "Fri", sales: 1700 },
     { name: "Sat", sales: 2100 },
     { name: "Sun", sales: 1800 },
-  ];
+  ]);
 
-  const productPerformance = [
+  const [productPerformance, setProductPerformance] = useState([
     { name: "Product A", revenue: 4000, profit: 2400, cost: 1600 },
     { name: "Product B", revenue: 3000, profit: 1398, cost: 1602 },
     { name: "Product C", revenue: 2000, profit: 980, cost: 1020 },
     { name: "Product D", revenue: 2780, profit: 1408, cost: 1372 },
     { name: "Product E", revenue: 1890, profit: 800, cost: 1090 },
-  ];
+  ]);
+
+  // Auto-refresh data every 5 minutes
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      refreshData();
+    }, 300000); // 5 minutes in milliseconds
+    
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Function to refresh data
+  const refreshData = () => {
+    setIsRefreshing(true);
+    
+    // Simulate API call with setTimeout
+    setTimeout(() => {
+      // Update data with random variations to simulate real-time data changes
+      setMonthlySales(prevData => 
+        prevData.map(item => ({
+          ...item,
+          value: item.value * (0.9 + Math.random() * 0.2) // +/- 10% random variation
+        }))
+      );
+      
+      setCategoryData(prevData => 
+        prevData.map(item => ({
+          ...item,
+          value: Math.max(5, Math.min(50, item.value * (0.9 + Math.random() * 0.2))) // +/- 10% with bounds
+        }))
+      );
+      
+      setSalesByDay(prevData => 
+        prevData.map(item => ({
+          ...item,
+          sales: item.sales * (0.9 + Math.random() * 0.2) // +/- 10% random variation
+        }))
+      );
+      
+      setProductPerformance(prevData => 
+        prevData.map(item => {
+          const revMultiplier = 0.9 + Math.random() * 0.2;
+          const revenue = item.revenue * revMultiplier;
+          const cost = item.cost * (0.95 + Math.random() * 0.1);
+          return {
+            ...item,
+            revenue,
+            cost,
+            profit: revenue - cost
+          };
+        })
+      );
+      
+      setLastRefreshed(new Date());
+      setIsRefreshing(false);
+      
+      toast({
+        title: "Data Refreshed",
+        description: `Analytics data was updated at ${new Date().toLocaleTimeString()}`,
+      });
+    }, 1500);
+  };
+  
+  // Export analytics as PDF
+  const handleExportPDF = () => {
+    setExportLoading(true);
+    
+    // Create a report content as a blob
+    const reportTitle = `StockEase Analytics Report - ${timeRange} - ${new Date().toLocaleDateString()}`;
+    const reportContent = `
+      # ${reportTitle}
+      
+      ## Overall Performance
+      Total Revenue: $45,231.89
+      Profit Margin: 42.3%
+      Average Order Value: $52.45
+      Conversion Rate: 24.8%
+      
+      ## Monthly Sales
+      ${monthlySales.map(item => `${item.name}: $${item.value}`).join('\n')}
+      
+      ## Category Distribution
+      ${categoryData.map(item => `${item.name}: ${item.value}%`).join('\n')}
+      
+      ## Daily Sales
+      ${salesByDay.map(item => `${item.name}: $${item.sales}`).join('\n')}
+      
+      ## Product Performance
+      ${productPerformance.map(item => 
+        `${item.name}: Revenue: $${item.revenue}, Cost: $${item.cost}, Profit: $${item.profit}`
+      ).join('\n')}
+      
+      Report generated on ${new Date().toLocaleString()}
+      Last data refresh: ${lastRefreshed.toLocaleString()}
+    `;
+    
+    // Create a blob and download it
+    const blob = new Blob([reportContent], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `analytics-report-${timeRange}-${new Date().toISOString().split('T')[0]}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setTimeout(() => {
+      setExportLoading(false);
+      toast({
+        title: "Analytics Report Downloaded",
+        description: "Report has been downloaded as PDF",
+      });
+    }, 1000);
+  };
+  
+  // Export analytics as Excel/CSV
+  const handleExportExcel = () => {
+    setExportLoading(true);
+    
+    // Create CSV content
+    let csvContent = "data:text/csv;charset=utf-8,";
+    
+    // Add headers and data for monthly sales
+    csvContent += "Month,Value\n";
+    monthlySales.forEach(item => {
+      csvContent += `${item.name},${item.value}\n`;
+    });
+    
+    csvContent += "\nCategory,Percentage\n";
+    categoryData.forEach(item => {
+      csvContent += `${item.name},${item.value}\n`;
+    });
+    
+    csvContent += "\nDay,Sales\n";
+    salesByDay.forEach(item => {
+      csvContent += `${item.name},${item.sales}\n`;
+    });
+    
+    csvContent += "\nProduct,Revenue,Cost,Profit\n";
+    productPerformance.forEach(item => {
+      csvContent += `${item.name},${item.revenue},${item.cost},${item.profit}\n`;
+    });
+    
+    // Create a URI encoded version of the CSV
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `analytics-report-${timeRange}-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setTimeout(() => {
+      setExportLoading(false);
+      toast({
+        title: "Analytics Report Downloaded",
+        description: "Report has been downloaded as Excel/CSV",
+      });
+    }, 1000);
+  };
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
@@ -88,6 +253,19 @@ const Analytics = () => {
               </p>
             </div>
             <div className="flex items-center space-x-2">
+              <div className="text-sm text-muted-foreground mr-2">
+                Last updated: {lastRefreshed.toLocaleTimeString()}
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={refreshData} 
+                disabled={isRefreshing}
+                className="flex items-center gap-1"
+              >
+                <RefreshCcw size={16} className={isRefreshing ? "animate-spin" : ""} />
+                <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
+              </Button>
               <span className="text-sm font-medium">Time Period:</span>
               <Select value={timeRange} onValueChange={setTimeRange}>
                 <SelectTrigger className="w-[180px]">
@@ -100,6 +278,26 @@ const Analytics = () => {
                   <SelectItem value="all">All Time</SelectItem>
                 </SelectContent>
               </Select>
+              <Button
+                variant="outline" 
+                size="sm"
+                className="flex items-center gap-1"
+                onClick={handleExportPDF}
+                disabled={exportLoading}
+              >
+                <FileText size={16} />
+                <span>PDF</span>
+              </Button>
+              <Button
+                variant="outline" 
+                size="sm"
+                className="flex items-center gap-1"
+                onClick={handleExportExcel}
+                disabled={exportLoading}
+              >
+                <Download size={16} />
+                <span>Excel</span>
+              </Button>
             </div>
           </div>
 

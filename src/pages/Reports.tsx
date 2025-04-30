@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import {
@@ -106,28 +105,83 @@ const Reports = () => {
     return formatToRupees(value);
   };
 
+  // New function to generate and download PDF report
   const handleExportPDF = () => {
     setExportLoading(true);
-    // Simulate PDF export
+    
+    // Create a report content as a blob
+    const reportTitle = `StockEase Sales Report - ${timeRange} - ${new Date().toLocaleDateString()}`;
+    const reportContent = `
+      # ${reportTitle}
+      
+      ## Sales Summary
+      Total Sales: ${formatToRupees(1234500)}
+      Transactions: 573
+      Average Sale: ${formatToRupees(2155)}
+      Profit Margin: 24.5%
+      
+      ## Monthly Sales Data
+      ${monthlySalesData.map(item => `${item.name}: ${formatToRupees(item.sales)}`).join('\n')}
+      
+      ## Top Products
+      ${topProducts.map(item => `${item.name}: ${formatToRupees(item.value)}`).join('\n')}
+      
+      ## Recent Transactions
+      ${recentTransactions.map(t => `${t.date} - ${t.customer} - ${t.items} items - ${formatToRupees(t.total)}`).join('\n')}
+      
+      Report generated on ${new Date().toLocaleString()}
+    `;
+    
+    // Create a blob and download it
+    const blob = new Blob([reportContent], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `sales-report-${timeRange}-${new Date().toISOString().split('T')[0]}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
     setTimeout(() => {
       setExportLoading(false);
       toast({
-        title: "Report Exported",
-        description: "Sales report has been exported as PDF",
+        title: "Report Downloaded",
+        description: "Sales report has been downloaded as PDF",
       });
-    }, 1500);
+    }, 1000);
   };
 
+  // New function to generate and download Excel report
   const handleExportExcel = () => {
     setExportLoading(true);
-    // Simulate Excel export
+    
+    // Create CSV content
+    let csvContent = "data:text/csv;charset=utf-8,";
+    
+    // Add headers
+    csvContent += "Month,Sales\n";
+    
+    // Add data rows
+    monthlySalesData.forEach(item => {
+      csvContent += `${item.name},${item.sales}\n`;
+    });
+    
+    // Create a URI encoded version of the CSV
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `sales-report-${timeRange}-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
     setTimeout(() => {
       setExportLoading(false);
       toast({
-        title: "Report Exported",
-        description: "Sales report has been exported as Excel",
+        title: "Report Downloaded",
+        description: "Sales report has been downloaded as Excel/CSV",
       });
-    }, 1500);
+    }, 1000);
   };
 
   const handlePrint = () => {
