@@ -1,6 +1,5 @@
-
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, query, orderBy, limit, where, Timestamp, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, limit, where, Timestamp, getDocs, DocumentData } from "firebase/firestore";
 import { useState, useEffect } from "react";
 
 // Types for analytics data
@@ -83,7 +82,11 @@ export const useMonthlySalesData = (timeRange: string) => {
         // Group sales by month
         const monthlySales = querySnapshot.docs.reduce((acc: Record<string, number>, doc) => {
           const data = doc.data();
-          const date = data.date.toDate();
+          const date = data.date?.toDate();
+          
+          // Skip if date is invalid
+          if (!date) return acc;
+          
           const monthYear = `${date.toLocaleString('default', { month: 'short' })}`;
           
           if (!acc[monthYear]) {
@@ -99,6 +102,10 @@ export const useMonthlySalesData = (timeRange: string) => {
           name: month,
           value: monthlySales[month],
         }));
+        
+        // Sort by month order
+        const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        formattedData.sort((a, b) => monthOrder.indexOf(a.name) - monthOrder.indexOf(b.name));
         
         setData(formattedData);
         setIsLoading(false);
@@ -128,34 +135,55 @@ export const useCategoryData = () => {
   useEffect(() => {
     setIsLoading(true);
     
-    // Query categories collection in Firestore
-    const categoriesRef = collection(db, "categories");
-    const q = query(categoriesRef, orderBy("value", "desc"), limit(5));
-    
-    try {
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const categories = querySnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            name: data.name,
-            value: data.value,
-          };
+    // If no categories collection exists, create mock data
+    const fetchCategories = async () => {
+      try {
+        const categoriesRef = collection(db, "categories");
+        const categoriesSnapshot = await getDocs(categoriesRef);
+        
+        if (categoriesSnapshot.empty) {
+          // If no categories exist, generate sample data
+          const sampleCategories = [
+            { name: "Electronics", value: 35 },
+            { name: "Clothing", value: 25 },
+            { name: "Food", value: 20 },
+            { name: "Books", value: 15 },
+            { name: "Other", value: 5 }
+          ];
+          setData(sampleCategories);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Otherwise set up real-time listener
+        const q = query(categoriesRef, orderBy("value", "desc"), limit(5));
+        
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          const categories = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              name: data.name || 'Unknown',
+              value: data.value || 0,
+            };
+          });
+          
+          setData(categories);
+          setIsLoading(false);
+        }, (error) => {
+          console.error("Error fetching category data:", error);
+          setError(error.message);
+          setIsLoading(false);
         });
         
-        setData(categories);
+        return unsubscribe;
+      } catch (err: any) {
+        console.error("Error setting up category data:", err);
+        setError(err.message);
         setIsLoading(false);
-      }, (error) => {
-        console.error("Error fetching category data:", error);
-        setError(error.message);
-        setIsLoading(false);
-      });
-      
-      return () => unsubscribe();
-    } catch (err: any) {
-      console.error("Error setting up category data listener:", err);
-      setError(err.message);
-      setIsLoading(false);
-    }
+      }
+    };
+    
+    fetchCategories();
   }, []);
 
   return { data, isLoading, error };
@@ -170,36 +198,60 @@ export const useProductPerformance = () => {
   useEffect(() => {
     setIsLoading(true);
     
-    // Query products collection
-    const productsRef = collection(db, "products");
-    const q = query(productsRef, orderBy("revenue", "desc"), limit(5));
-    
-    try {
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const products = querySnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            name: data.name,
-            revenue: data.revenue || 0,
-            cost: data.cost || 0,
-            profit: (data.revenue || 0) - (data.cost || 0),
-          };
+    // Check if products collection exists and has data
+    const fetchProducts = async () => {
+      try {
+        const productsRef = collection(db, "products");
+        const productsSnapshot = await getDocs(productsRef);
+        
+        if (productsSnapshot.empty) {
+          // If no products exist, generate sample data
+          const sampleProducts = [
+            { name: "Laptop", revenue: 45000, cost: 30000, profit: 15000 },
+            { name: "Smartphone", revenue: 35000, cost: 25000, profit: 10000 },
+            { name: "Tablet", revenue: 25000, cost: 15000, profit: 10000 },
+            { name: "Headphones", revenue: 15000, cost: 8000, profit: 7000 },
+            { name: "Smartwatch", revenue: 10000, cost: 5000, profit: 5000 }
+          ];
+          setData(sampleProducts);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Otherwise set up real-time listener
+        const q = query(productsRef, orderBy("revenue", "desc"), limit(5));
+        
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          const products = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            const revenue = data.revenue || 0;
+            const cost = data.cost || 0;
+            
+            return {
+              name: data.name || 'Unknown',
+              revenue: revenue,
+              cost: cost,
+              profit: revenue - cost,
+            };
+          });
+          
+          setData(products);
+          setIsLoading(false);
+        }, (error) => {
+          console.error("Error fetching product performance data:", error);
+          setError(error.message);
+          setIsLoading(false);
         });
         
-        setData(products);
+        return unsubscribe;
+      } catch (err: any) {
+        console.error("Error setting up product data:", err);
+        setError(err.message);
         setIsLoading(false);
-      }, (error) => {
-        console.error("Error fetching product performance data:", error);
-        setError(error.message);
-        setIsLoading(false);
-      });
-      
-      return () => unsubscribe();
-    } catch (err: any) {
-      console.error("Error setting up product performance data listener:", err);
-      setError(err.message);
-      setIsLoading(false);
-    }
+      }
+    };
+    
+    fetchProducts();
   }, []);
 
   return { data, isLoading, error };
@@ -228,10 +280,26 @@ export const useDailySales = () => {
     
     try {
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        // If no data, provide sample data
+        if (querySnapshot.empty) {
+          const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+          const sampleData = daysOfWeek.map((day, index) => ({
+            name: day,
+            sales: Math.floor(Math.random() * 5000) + 1000,
+          }));
+          setData(sampleData);
+          setIsLoading(false);
+          return;
+        }
+          
         // Group sales by day of week
         const dailySales = querySnapshot.docs.reduce((acc: Record<string, number>, doc) => {
           const data = doc.data();
-          const date = data.date.toDate();
+          const date = data.date?.toDate();
+          
+          // Skip if date is invalid
+          if (!date) return acc;
+          
           const day = date.toLocaleString('default', { weekday: 'short' });
           
           if (!acc[day]) {
@@ -281,24 +349,57 @@ export const useAnalyticsSummary = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setIsLoading(true);
+    
     const fetchSummaryData = async () => {
-      setIsLoading(true);
       try {
-        // Get summary from a dedicated summary document for better performance
+        // Check if summary document exists
         const summaryRef = collection(db, "analytics");
         const summarySnap = await getDocs(summaryRef);
         
-        if (!summarySnap.empty) {
-          const summaryData = summarySnap.docs[0].data();
-          setData({
-            totalRevenue: summaryData.totalRevenue || 0,
-            profitMargin: summaryData.profitMargin || 0,
-            averageOrderValue: summaryData.averageOrderValue || 0,
-            conversionRate: summaryData.conversionRate || 0,
-            lastUpdated: summaryData.lastUpdated?.toDate() || new Date(),
-          });
+        if (summarySnap.empty) {
+          // If no summary exists, generate sample data
+          const sampleSummary = {
+            totalRevenue: 45231.89,
+            profitMargin: 42.3,
+            averageOrderValue: 52.45,
+            conversionRate: 24.8,
+            lastUpdated: new Date(),
+          };
+          setData(sampleSummary);
+          setIsLoading(false);
+          return;
         }
-        setIsLoading(false);
+        
+        // Set up real-time listener
+        const unsubscribe = onSnapshot(summaryRef, (snapshot) => {
+          if (snapshot.empty) {
+            const sampleSummary = {
+              totalRevenue: 45231.89,
+              profitMargin: 42.3,
+              averageOrderValue: 52.45,
+              conversionRate: 24.8,
+              lastUpdated: new Date(),
+            };
+            setData(sampleSummary);
+          } else {
+            const summaryData = snapshot.docs[0].data();
+            setData({
+              totalRevenue: summaryData.totalRevenue || 0,
+              profitMargin: summaryData.profitMargin || 0,
+              averageOrderValue: summaryData.averageOrderValue || 0,
+              conversionRate: summaryData.conversionRate || 0,
+              lastUpdated: summaryData.lastUpdated?.toDate() || new Date(),
+            });
+          }
+          setIsLoading(false);
+        }, (err) => {
+          console.error("Error in analytics summary listener:", err);
+          setError(err.message);
+          setIsLoading(false);
+        });
+        
+        return () => unsubscribe();
       } catch (err: any) {
         console.error("Error fetching analytics summary:", err);
         setError(err.message);
@@ -307,26 +408,6 @@ export const useAnalyticsSummary = () => {
     };
 
     fetchSummaryData();
-    
-    // Set up a listener for real-time updates
-    const summaryRef = collection(db, "analytics");
-    const unsubscribe = onSnapshot(summaryRef, (snapshot) => {
-      if (!snapshot.empty) {
-        const summaryData = snapshot.docs[0].data();
-        setData({
-          totalRevenue: summaryData.totalRevenue || 0,
-          profitMargin: summaryData.profitMargin || 0,
-          averageOrderValue: summaryData.averageOrderValue || 0,
-          conversionRate: summaryData.conversionRate || 0,
-          lastUpdated: summaryData.lastUpdated?.toDate() || new Date(),
-        });
-      }
-    }, (err) => {
-      console.error("Error in analytics summary listener:", err);
-      setError(err.message);
-    });
-    
-    return () => unsubscribe();
   }, []);
 
   return { data, isLoading, error };
