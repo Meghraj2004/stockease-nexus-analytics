@@ -31,215 +31,322 @@ import AdminRoute from "@/components/AdminRoute";
 import { RefreshCcw, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
+import { formatToRupees } from "@/types/inventory";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
+import * as XLSX from 'xlsx';
+
+// Import our custom hooks for real-time data
+import {
+  useMonthlySalesData,
+  useCategoryData,
+  useProductPerformance,
+  useDailySales,
+  useAnalyticsSummary
+} from "@/services/analyticsService";
 
 const Analytics = () => {
   const [timeRange, setTimeRange] = useState("year");
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastRefreshed, setLastRefreshed] = useState(new Date());
   const [exportLoading, setExportLoading] = useState(false);
   
-  // Sample data - in a real app, this would come from your database
-  const [monthlySales, setMonthlySales] = useState([
-    { name: "Jan", value: 4000 },
-    { name: "Feb", value: 3000 },
-    { name: "Mar", value: 2000 },
-    { name: "Apr", value: 2780 },
-    { name: "May", value: 1890 },
-    { name: "Jun", value: 2390 },
-    { name: "Jul", value: 3490 },
-    { name: "Aug", value: 2900 },
-    { name: "Sep", value: 3200 },
-    { name: "Oct", value: 2800 },
-    { name: "Nov", value: 3800 },
-    { name: "Dec", value: 4300 },
-  ]);
+  // Use our custom hooks to get real-time data
+  const { 
+    data: monthlySales, 
+    isLoading: salesLoading, 
+    error: salesError 
+  } = useMonthlySalesData(timeRange);
+  
+  const { 
+    data: categoryData, 
+    isLoading: categoryLoading, 
+    error: categoryError 
+  } = useCategoryData();
+  
+  const { 
+    data: productPerformance, 
+    isLoading: productLoading, 
+    error: productError 
+  } = useProductPerformance();
+  
+  const { 
+    data: salesByDay, 
+    isLoading: dailyLoading, 
+    error: dailyError 
+  } = useDailySales();
+  
+  const { 
+    data: analyticsSummary, 
+    isLoading: summaryLoading, 
+    error: summaryError 
+  } = useAnalyticsSummary();
 
-  const [categoryData, setCategoryData] = useState([
-    { name: "Electronics", value: 30 },
-    { name: "Clothing", value: 25 },
-    { name: "Food", value: 20 },
-    { name: "Books", value: 15 },
-    { name: "Other", value: 10 },
-  ]);
-
-  const [salesByDay, setSalesByDay] = useState([
-    { name: "Mon", sales: 1000 },
-    { name: "Tue", sales: 1200 },
-    { name: "Wed", sales: 1500 },
-    { name: "Thu", sales: 1300 },
-    { name: "Fri", sales: 1700 },
-    { name: "Sat", sales: 2100 },
-    { name: "Sun", sales: 1800 },
-  ]);
-
-  const [productPerformance, setProductPerformance] = useState([
-    { name: "Product A", revenue: 4000, profit: 2400, cost: 1600 },
-    { name: "Product B", revenue: 3000, profit: 1398, cost: 1602 },
-    { name: "Product C", revenue: 2000, profit: 980, cost: 1020 },
-    { name: "Product D", revenue: 2780, profit: 1408, cost: 1372 },
-    { name: "Product E", revenue: 1890, profit: 800, cost: 1090 },
-  ]);
-
-  // Auto-refresh data every 5 minutes
+  // Calculate last refreshed time
+  const [lastRefreshed, setLastRefreshed] = useState(new Date());
+  
+  // Update last refreshed time when any data changes
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      refreshData();
-    }, 300000); // 5 minutes in milliseconds
-    
-    return () => clearInterval(intervalId);
-  }, []);
-
+    setLastRefreshed(new Date());
+  }, [monthlySales, categoryData, productPerformance, salesByDay, analyticsSummary]);
+  
   // Function to refresh data
   const refreshData = () => {
     setIsRefreshing(true);
     
-    // Simulate API call with setTimeout
+    // Our hooks already have real-time listeners, but we can 
+    // force a UI refresh to show the loading indicator
     setTimeout(() => {
-      // Update data with random variations to simulate real-time data changes
-      setMonthlySales(prevData => 
-        prevData.map(item => ({
-          ...item,
-          value: item.value * (0.9 + Math.random() * 0.2) // +/- 10% random variation
-        }))
-      );
-      
-      setCategoryData(prevData => 
-        prevData.map(item => ({
-          ...item,
-          value: Math.max(5, Math.min(50, item.value * (0.9 + Math.random() * 0.2))) // +/- 10% with bounds
-        }))
-      );
-      
-      setSalesByDay(prevData => 
-        prevData.map(item => ({
-          ...item,
-          sales: item.sales * (0.9 + Math.random() * 0.2) // +/- 10% random variation
-        }))
-      );
-      
-      setProductPerformance(prevData => 
-        prevData.map(item => {
-          const revMultiplier = 0.9 + Math.random() * 0.2;
-          const revenue = item.revenue * revMultiplier;
-          const cost = item.cost * (0.95 + Math.random() * 0.1);
-          return {
-            ...item,
-            revenue,
-            cost,
-            profit: revenue - cost
-          };
-        })
-      );
-      
-      setLastRefreshed(new Date());
       setIsRefreshing(false);
+      setLastRefreshed(new Date());
       
       toast({
         title: "Data Refreshed",
         description: `Analytics data was updated at ${new Date().toLocaleTimeString()}`,
       });
-    }, 1500);
+    }, 1000);
   };
   
   // Export analytics as PDF
   const handleExportPDF = () => {
     setExportLoading(true);
     
-    // Create a report content as a blob
-    const reportTitle = `StockEase Analytics Report - ${timeRange} - ${new Date().toLocaleDateString()}`;
-    const reportContent = `
-      # ${reportTitle}
+    try {
+      const doc = new jsPDF();
+      const reportTitle = `StockEase Analytics Report - ${timeRange} - ${new Date().toLocaleDateString()}`;
       
-      ## Overall Performance
-      Total Revenue: $45,231.89
-      Profit Margin: 42.3%
-      Average Order Value: $52.45
-      Conversion Rate: 24.8%
+      // Add title
+      doc.setFontSize(18);
+      doc.text(reportTitle, 14, 20);
       
-      ## Monthly Sales
-      ${monthlySales.map(item => `${item.name}: $${item.value}`).join('\n')}
+      // Add summary section
+      doc.setFontSize(14);
+      doc.text("Overall Performance", 14, 30);
+      doc.setFontSize(10);
+      doc.text(`Total Revenue: ${formatToRupees(analyticsSummary.totalRevenue)}`, 14, 40);
+      doc.text(`Profit Margin: ${analyticsSummary.profitMargin}%`, 14, 45);
+      doc.text(`Average Order Value: ${formatToRupees(analyticsSummary.averageOrderValue)}`, 14, 50);
+      doc.text(`Conversion Rate: ${analyticsSummary.conversionRate}%`, 14, 55);
       
-      ## Category Distribution
-      ${categoryData.map(item => `${item.name}: ${item.value}%`).join('\n')}
+      // Add monthly sales table
+      doc.setFontSize(14);
+      doc.text("Monthly Sales", 14, 65);
       
-      ## Daily Sales
-      ${salesByDay.map(item => `${item.name}: $${item.sales}`).join('\n')}
+      const monthlySalesRows = monthlySales.map(item => [
+        item.name, 
+        formatToRupees(item.value)
+      ]);
       
-      ## Product Performance
-      ${productPerformance.map(item => 
-        `${item.name}: Revenue: $${item.revenue}, Cost: $${item.cost}, Profit: $${item.profit}`
-      ).join('\n')}
+      // @ts-ignore - jspdf-autotable adds this method
+      doc.autoTable({
+        startY: 70,
+        head: [["Month", "Value"]],
+        body: monthlySalesRows,
+      });
       
-      Report generated on ${new Date().toLocaleString()}
-      Last data refresh: ${lastRefreshed.toLocaleString()}
-    `;
-    
-    // Create a blob and download it
-    const blob = new Blob([reportContent], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `analytics-report-${timeRange}-${new Date().toISOString().split('T')[0]}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    setTimeout(() => {
+      // Add category distribution table
+      const currentY = (doc as any).lastAutoTable.finalY + 10;
+      doc.setFontSize(14);
+      doc.text("Category Distribution", 14, currentY);
+      
+      const categoryRows = categoryData.map(item => [
+        item.name, 
+        `${item.value}%`
+      ]);
+      
+      // @ts-ignore - jspdf-autotable adds this method
+      doc.autoTable({
+        startY: currentY + 5,
+        head: [["Category", "Percentage"]],
+        body: categoryRows,
+      });
+      
+      // Add daily sales table
+      const dailyY = (doc as any).lastAutoTable.finalY + 10;
+      doc.setFontSize(14);
+      doc.text("Daily Sales", 14, dailyY);
+      
+      const dailyRows = salesByDay.map(item => [
+        item.name,
+        formatToRupees(item.sales)
+      ]);
+      
+      // @ts-ignore - jspdf-autotable adds this method
+      doc.autoTable({
+        startY: dailyY + 5,
+        head: [["Day", "Sales"]],
+        body: dailyRows,
+      });
+      
+      // Add product performance table
+      const productY = (doc as any).lastAutoTable.finalY + 10;
+      doc.setFontSize(14);
+      doc.text("Product Performance", 14, productY);
+      
+      const productRows = productPerformance.map(item => [
+        item.name,
+        formatToRupees(item.revenue),
+        formatToRupees(item.cost),
+        formatToRupees(item.profit)
+      ]);
+      
+      // @ts-ignore - jspdf-autotable adds this method
+      doc.autoTable({
+        startY: productY + 5,
+        head: [["Product", "Revenue", "Cost", "Profit"]],
+        body: productRows,
+      });
+      
+      // Add footer
+      doc.setFontSize(10);
+      doc.text(`Report generated on ${new Date().toLocaleString()}`, 14, doc.internal.pageSize.height - 10);
+      doc.text(`Last data refresh: ${lastRefreshed.toLocaleString()}`, 14, doc.internal.pageSize.height - 15);
+      
+      // Save the PDF
+      doc.save(`analytics-report-${timeRange}-${new Date().toISOString().split('T')[0]}.pdf`);
+      
+      setTimeout(() => {
+        setExportLoading(false);
+        toast({
+          title: "Analytics Report Downloaded",
+          description: "Report has been downloaded as PDF",
+        });
+      }, 500);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
       setExportLoading(false);
       toast({
-        title: "Analytics Report Downloaded",
-        description: "Report has been downloaded as PDF",
+        variant: "destructive",
+        title: "Export Failed",
+        description: "There was an error generating the PDF report",
       });
-    }, 1000);
+    }
   };
   
   // Export analytics as Excel/CSV
   const handleExportExcel = () => {
     setExportLoading(true);
     
-    // Create CSV content
-    let csvContent = "data:text/csv;charset=utf-8,";
-    
-    // Add headers and data for monthly sales
-    csvContent += "Month,Value\n";
-    monthlySales.forEach(item => {
-      csvContent += `${item.name},${item.value}\n`;
-    });
-    
-    csvContent += "\nCategory,Percentage\n";
-    categoryData.forEach(item => {
-      csvContent += `${item.name},${item.value}\n`;
-    });
-    
-    csvContent += "\nDay,Sales\n";
-    salesByDay.forEach(item => {
-      csvContent += `${item.name},${item.sales}\n`;
-    });
-    
-    csvContent += "\nProduct,Revenue,Cost,Profit\n";
-    productPerformance.forEach(item => {
-      csvContent += `${item.name},${item.revenue},${item.cost},${item.profit}\n`;
-    });
-    
-    // Create a URI encoded version of the CSV
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `analytics-report-${timeRange}-${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    setTimeout(() => {
+    try {
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Monthly sales worksheet
+      const monthlySalesData = monthlySales.map(item => ({
+        Month: item.name,
+        Value: item.value
+      }));
+      
+      const mSheet = XLSX.utils.json_to_sheet(monthlySalesData);
+      XLSX.utils.book_append_sheet(wb, mSheet, "Monthly Sales");
+      
+      // Category worksheet
+      const categorySheetData = categoryData.map(item => ({
+        Category: item.name,
+        Percentage: `${item.value}%`
+      }));
+      
+      const cSheet = XLSX.utils.json_to_sheet(categorySheetData);
+      XLSX.utils.book_append_sheet(wb, cSheet, "Category Distribution");
+      
+      // Daily sales worksheet
+      const dailySheetData = salesByDay.map(item => ({
+        Day: item.name,
+        Sales: item.sales
+      }));
+      
+      const dSheet = XLSX.utils.json_to_sheet(dailySheetData);
+      XLSX.utils.book_append_sheet(wb, dSheet, "Daily Sales");
+      
+      // Product performance worksheet
+      const productSheetData = productPerformance.map(item => ({
+        Product: item.name,
+        Revenue: item.revenue,
+        Cost: item.cost,
+        Profit: item.profit
+      }));
+      
+      const pSheet = XLSX.utils.json_to_sheet(productSheetData);
+      XLSX.utils.book_append_sheet(wb, pSheet, "Product Performance");
+      
+      // Summary worksheet
+      const summaryData = [
+        { Metric: "Total Revenue", Value: analyticsSummary.totalRevenue },
+        { Metric: "Profit Margin", Value: `${analyticsSummary.profitMargin}%` },
+        { Metric: "Average Order Value", Value: analyticsSummary.averageOrderValue },
+        { Metric: "Conversion Rate", Value: `${analyticsSummary.conversionRate}%` }
+      ];
+      
+      const sSheet = XLSX.utils.json_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(wb, sSheet, "Summary");
+      
+      // Generate and save the file
+      XLSX.writeFile(wb, `analytics-report-${timeRange}-${new Date().toISOString().split('T')[0]}.xlsx`);
+      
+      setTimeout(() => {
+        setExportLoading(false);
+        toast({
+          title: "Analytics Report Downloaded",
+          description: "Report has been downloaded as Excel/CSV",
+        });
+      }, 500);
+    } catch (error) {
+      console.error("Error generating Excel:", error);
       setExportLoading(false);
       toast({
-        title: "Analytics Report Downloaded",
-        description: "Report has been downloaded as Excel/CSV",
+        variant: "destructive",
+        title: "Export Failed",
+        description: "There was an error generating the Excel report",
       });
-    }, 1000);
+    }
   };
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
+
+  // Show loading state if multiple data sources are loading
+  if (salesLoading && categoryLoading && productLoading && dailyLoading && summaryLoading) {
+    return (
+      <AdminRoute>
+        <DashboardLayout>
+          <div className="flex items-center justify-center h-[80vh]">
+            <div className="text-center">
+              <RefreshCcw size={40} className="mx-auto animate-spin text-stockease-600" />
+              <h2 className="mt-4 text-xl font-medium">Loading Analytics Data...</h2>
+              <p className="text-muted-foreground">
+                Fetching real-time data from Firebase
+              </p>
+            </div>
+          </div>
+        </DashboardLayout>
+      </AdminRoute>
+    );
+  }
+
+  // Show error state if any data source has an error
+  const hasError = salesError || categoryError || productError || dailyError || summaryError;
+  if (hasError) {
+    return (
+      <AdminRoute>
+        <DashboardLayout>
+          <div className="space-y-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+              <h2 className="text-xl font-bold text-red-600">Error Loading Analytics Data</h2>
+              <p className="text-red-500 mt-2">
+                {salesError || categoryError || productError || dailyError || summaryError}
+              </p>
+              <Button 
+                variant="default" 
+                className="mt-4"
+                onClick={refreshData}
+              >
+                <RefreshCcw size={16} className="mr-2" />
+                Retry
+              </Button>
+            </div>
+          </div>
+        </DashboardLayout>
+      </AdminRoute>
+    );
+  }
 
   return (
     <AdminRoute>
@@ -309,7 +416,7 @@ const Analytics = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">$45,231.89</div>
+                <div className="text-2xl font-bold">{formatToRupees(analyticsSummary.totalRevenue)}</div>
                 <div className="flex items-center space-x-2">
                   <span className="text-xs text-green-500">+20.1%</span>
                   <div className="text-xs text-muted-foreground">from last period</div>
@@ -323,7 +430,7 @@ const Analytics = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">42.3%</div>
+                <div className="text-2xl font-bold">{analyticsSummary.profitMargin}%</div>
                 <div className="flex items-center space-x-2">
                   <span className="text-xs text-green-500">+4.2%</span>
                   <div className="text-xs text-muted-foreground">from last period</div>
@@ -337,7 +444,7 @@ const Analytics = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">$52.45</div>
+                <div className="text-2xl font-bold">{formatToRupees(analyticsSummary.averageOrderValue)}</div>
                 <div className="flex items-center space-x-2">
                   <span className="text-xs text-red-500">-2.5%</span>
                   <div className="text-xs text-muted-foreground">from last period</div>
@@ -351,7 +458,7 @@ const Analytics = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">24.8%</div>
+                <div className="text-2xl font-bold">{analyticsSummary.conversionRate}%</div>
                 <div className="flex items-center space-x-2">
                   <span className="text-xs text-green-500">+3.1%</span>
                   <div className="text-xs text-muted-foreground">from last period</div>
@@ -377,29 +484,35 @@ const Analytics = () => {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <AreaChart
-                        data={monthlySales}
-                        margin={{
-                          top: 10,
-                          right: 30,
-                          left: 0,
-                          bottom: 0,
-                        }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip formatter={(value) => [`$${value}`, 'Revenue']} />
-                        <Area
-                          type="monotone"
-                          dataKey="value"
-                          stroke="#0ea5e9"
-                          fill="#0ea5e9"
-                          fillOpacity={0.3}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    {salesLoading ? (
+                      <div className="flex items-center justify-center h-[300px]">
+                        <RefreshCcw className="animate-spin text-stockease-600" />
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <AreaChart
+                          data={monthlySales}
+                          margin={{
+                            top: 10,
+                            right: 30,
+                            left: 0,
+                            bottom: 0,
+                          }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis tickFormatter={(value) => formatToRupees(value)} />
+                          <Tooltip formatter={(value) => [formatToRupees(Number(value)), 'Revenue']} />
+                          <Area
+                            type="monotone"
+                            dataKey="value"
+                            stroke="#0ea5e9"
+                            fill="#0ea5e9"
+                            fillOpacity={0.3}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -411,28 +524,34 @@ const Analytics = () => {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={categoryData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        >
-                          {categoryData.map((entry, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={COLORS[index % COLORS.length]}
-                            />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(value) => [`${value}%`, 'Percentage']} />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    {categoryLoading ? (
+                      <div className="flex items-center justify-center h-[300px]">
+                        <RefreshCcw className="animate-spin text-stockease-600" />
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={categoryData}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          >
+                            {categoryData.map((entry, index) => (
+                              <Cell
+                                key={`cell-${index}`}
+                                fill={COLORS[index % COLORS.length]}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value) => [`${value}%`, 'Percentage']} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -445,24 +564,30 @@ const Analytics = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart
-                      data={salesByDay}
-                      margin={{
-                        top: 5,
-                        right: 30,
-                        left: 20,
-                        bottom: 5,
-                      }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip formatter={(value) => [`$${value}`, 'Sales']} />
-                      <Legend />
-                      <Bar dataKey="sales" fill="#0ea5e9" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {dailyLoading ? (
+                    <div className="flex items-center justify-center h-[300px]">
+                      <RefreshCcw className="animate-spin text-stockease-600" />
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart
+                        data={salesByDay}
+                        margin={{
+                          top: 5,
+                          right: 30,
+                          left: 20,
+                          bottom: 5,
+                        }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis tickFormatter={(value) => formatToRupees(value)} />
+                        <Tooltip formatter={(value) => [formatToRupees(Number(value)), 'Sales']} />
+                        <Legend />
+                        <Bar dataKey="sales" fill="#0ea5e9" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -476,26 +601,32 @@ const Analytics = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={400}>
-                    <BarChart
-                      data={productPerformance}
-                      margin={{
-                        top: 20,
-                        right: 30,
-                        left: 20,
-                        bottom: 5,
-                      }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip formatter={(value) => [`$${value}`, '']} />
-                      <Legend />
-                      <Bar dataKey="revenue" stackId="a" fill="#0ea5e9" name="Revenue" />
-                      <Bar dataKey="cost" stackId="a" fill="#ef4444" name="Cost" />
-                      <Bar dataKey="profit" fill="#22c55e" name="Profit" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {productLoading ? (
+                    <div className="flex items-center justify-center h-[400px]">
+                      <RefreshCcw className="animate-spin text-stockease-600" />
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={400}>
+                      <BarChart
+                        data={productPerformance}
+                        margin={{
+                          top: 20,
+                          right: 30,
+                          left: 20,
+                          bottom: 5,
+                        }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis tickFormatter={(value) => formatToRupees(value)} />
+                        <Tooltip formatter={(value) => [formatToRupees(Number(value)), '']} />
+                        <Legend />
+                        <Bar dataKey="revenue" stackId="a" fill="#0ea5e9" name="Revenue" />
+                        <Bar dataKey="cost" stackId="a" fill="#ef4444" name="Cost" />
+                        <Bar dataKey="profit" fill="#22c55e" name="Profit" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

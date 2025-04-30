@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import {
@@ -34,156 +35,62 @@ import {
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Printer } from "lucide-react";
+import { Download, FileText, Printer, RefreshCcw } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { formatToRupees } from "@/types/inventory";
 
+// Import our custom hook for sales report data
+import { useSalesReportData } from "@/services/reportsService";
+
 const Reports = () => {
   const [timeRange, setTimeRange] = useState("month");
-  const [exportLoading, setExportLoading] = useState(false);
+  
+  // Use our custom hook to get real-time data
+  const { 
+    data: reportData, 
+    isLoading, 
+    error, 
+    exportToPDF, 
+    exportToExcel 
+  } = useSalesReportData(timeRange);
 
-  // Sample data - in a real app, this would be fetched from your database
-  const monthlySalesData = [
-    { name: "Jan", sales: 400000 },
-    { name: "Feb", sales: 300000 },
-    { name: "Mar", sales: 200000 },
-    { name: "Apr", sales: 278000 },
-    { name: "May", sales: 189000 },
-    { name: "Jun", sales: 239000 },
-    { name: "Jul", sales: 349000 },
-  ];
-
-  const topProducts = [
-    { name: "Product A", value: 40000 },
-    { name: "Product B", value: 30000 },
-    { name: "Product C", value: 30000 },
-    { name: "Product D", value: 20000 },
-  ];
-
-  const recentTransactions = [
-    {
-      id: "1",
-      date: "2023-04-23",
-      customer: "John Doe",
-      items: 3,
-      total: 15250,
-    },
-    {
-      id: "2",
-      date: "2023-04-22",
-      customer: "Jane Smith",
-      items: 2,
-      total: 8999,
-    },
-    {
-      id: "3",
-      date: "2023-04-21",
-      customer: "Robert Johnson",
-      items: 5,
-      total: 21075,
-    },
-    {
-      id: "4",
-      date: "2023-04-21",
-      customer: "Maria Garcia",
-      items: 1,
-      total: 4999,
-    },
-    {
-      id: "5",
-      date: "2023-04-20",
-      customer: "David Chen",
-      items: 4,
-      total: 17525,
-    },
-  ];
-
-  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
-
-  // Custom tooltip formatter for charts to show rupee format
-  const formatChartValue = (value: number) => {
-    return formatToRupees(value);
-  };
-
-  // New function to generate and download PDF report
+  // Handle PDF export
   const handleExportPDF = () => {
-    setExportLoading(true);
+    const success = exportToPDF();
     
-    // Create a report content as a blob
-    const reportTitle = `StockEase Sales Report - ${timeRange} - ${new Date().toLocaleDateString()}`;
-    const reportContent = `
-      # ${reportTitle}
-      
-      ## Sales Summary
-      Total Sales: ${formatToRupees(1234500)}
-      Transactions: 573
-      Average Sale: ${formatToRupees(2155)}
-      Profit Margin: 24.5%
-      
-      ## Monthly Sales Data
-      ${monthlySalesData.map(item => `${item.name}: ${formatToRupees(item.sales)}`).join('\n')}
-      
-      ## Top Products
-      ${topProducts.map(item => `${item.name}: ${formatToRupees(item.value)}`).join('\n')}
-      
-      ## Recent Transactions
-      ${recentTransactions.map(t => `${t.date} - ${t.customer} - ${t.items} items - ${formatToRupees(t.total)}`).join('\n')}
-      
-      Report generated on ${new Date().toLocaleString()}
-    `;
-    
-    // Create a blob and download it
-    const blob = new Blob([reportContent], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `sales-report-${timeRange}-${new Date().toISOString().split('T')[0]}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    setTimeout(() => {
-      setExportLoading(false);
+    if (success) {
       toast({
         title: "Report Downloaded",
         description: "Sales report has been downloaded as PDF",
       });
-    }, 1000);
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: "There was an error generating the PDF report",
+      });
+    }
   };
 
-  // New function to generate and download Excel report
+  // Handle Excel export
   const handleExportExcel = () => {
-    setExportLoading(true);
+    const success = exportToExcel();
     
-    // Create CSV content
-    let csvContent = "data:text/csv;charset=utf-8,";
-    
-    // Add headers
-    csvContent += "Month,Sales\n";
-    
-    // Add data rows
-    monthlySalesData.forEach(item => {
-      csvContent += `${item.name},${item.sales}\n`;
-    });
-    
-    // Create a URI encoded version of the CSV
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `sales-report-${timeRange}-${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    setTimeout(() => {
-      setExportLoading(false);
+    if (success) {
       toast({
         title: "Report Downloaded",
         description: "Sales report has been downloaded as Excel/CSV",
       });
-    }, 1000);
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: "There was an error generating the Excel report",
+      });
+    }
   };
 
+  // Handle print
   const handlePrint = () => {
     window.print();
     toast({
@@ -191,6 +98,50 @@ const Reports = () => {
       description: "Sales report print dialog opened",
     });
   };
+
+  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-[80vh]">
+          <div className="text-center">
+            <RefreshCcw size={40} className="mx-auto animate-spin text-stockease-600" />
+            <h2 className="mt-4 text-xl font-medium">Loading Reports Data...</h2>
+            <p className="text-muted-foreground">
+              Fetching real-time data from Firebase
+            </p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h2 className="text-xl font-bold text-red-600">Error Loading Reports Data</h2>
+            <p className="text-red-500 mt-2">{error}</p>
+            <Button 
+              variant="default" 
+              className="mt-4"
+              onClick={() => {
+                // Force re-render
+                setTimeRange(prev => prev === "week" ? "month" : "week");
+              }}
+            >
+              <RefreshCcw size={16} className="mr-2" />
+              Retry
+            </Button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -226,7 +177,6 @@ const Reports = () => {
                 size="sm"
                 className="flex items-center gap-1"
                 onClick={handleExportPDF}
-                disabled={exportLoading}
               >
                 <FileText size={16} />
                 <span>PDF</span>
@@ -236,7 +186,6 @@ const Reports = () => {
                 size="sm"
                 className="flex items-center gap-1"
                 onClick={handleExportExcel}
-                disabled={exportLoading}
               >
                 <Download size={16} />
                 <span>Excel</span>
@@ -246,7 +195,6 @@ const Reports = () => {
                 size="sm"
                 className="flex items-center gap-1"
                 onClick={handlePrint}
-                disabled={exportLoading}
               >
                 <Printer size={16} />
                 <span>Print</span>
@@ -271,7 +219,9 @@ const Reports = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{formatToRupees(1234500)}</div>
+                  <div className="text-2xl font-bold">
+                    {formatToRupees(reportData.summary.totalSales)}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     +18% from last period
                   </p>
@@ -284,7 +234,7 @@ const Reports = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">+573</div>
+                  <div className="text-2xl font-bold">+{reportData.summary.transactions}</div>
                   <p className="text-xs text-muted-foreground">
                     +5% from last period
                   </p>
@@ -297,7 +247,9 @@ const Reports = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{formatToRupees(2155)}</div>
+                  <div className="text-2xl font-bold">
+                    {formatToRupees(reportData.summary.averageSale)}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     +12% from last period
                   </p>
@@ -310,7 +262,7 @@ const Reports = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">+24.5%</div>
+                  <div className="text-2xl font-bold">+{reportData.summary.profitMargin.toFixed(1)}%</div>
                   <p className="text-xs text-muted-foreground">
                     +2% from last period
                   </p>
@@ -329,7 +281,7 @@ const Reports = () => {
                 <CardContent className="pt-6 pl-2">
                   <ResponsiveContainer width="100%" height={300}>
                     <LineChart
-                      data={monthlySalesData}
+                      data={reportData.monthlySalesData}
                       margin={{
                         top: 5,
                         right: 30,
@@ -339,8 +291,8 @@ const Reports = () => {
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
-                      <YAxis tickFormatter={formatChartValue} />
-                      <Tooltip formatter={formatChartValue} />
+                      <YAxis tickFormatter={(value) => formatToRupees(value)} />
+                      <Tooltip formatter={(value) => formatToRupees(Number(value))} />
                       <Legend />
                       <Line
                         type="monotone"
@@ -363,7 +315,7 @@ const Reports = () => {
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
                       <Pie
-                        data={topProducts}
+                        data={reportData.topProducts}
                         cx="50%"
                         cy="50%"
                         labelLine={false}
@@ -372,7 +324,7 @@ const Reports = () => {
                         dataKey="value"
                         label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                       >
-                        {topProducts.map((entry, index) => (
+                        {reportData.topProducts.map((entry, index) => (
                           <Cell
                             key={`cell-${index}`}
                             fill={COLORS[index % COLORS.length]}
@@ -398,13 +350,11 @@ const Reports = () => {
               <CardContent className="pt-6">
                 <ResponsiveContainer width="100%" height={400}>
                   <BarChart
-                    data={[
-                      { product: "Product A", sales: 40000, profit: 24000 },
-                      { product: "Product B", sales: 30000, profit: 13900 },
-                      { product: "Product C", sales: 20000, profit: 8000 },
-                      { product: "Product D", sales: 27800, profit: 15000 },
-                      { product: "Product E", sales: 18900, profit: 8000 },
-                    ]}
+                    data={reportData.topProducts.map(product => ({
+                      product: product.name,
+                      sales: product.value,
+                      profit: product.value * 0.4 // Example calculation
+                    }))}
                     margin={{
                       top: 20,
                       right: 30,
@@ -414,7 +364,7 @@ const Reports = () => {
                   >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="product" />
-                    <YAxis tickFormatter={formatChartValue} />
+                    <YAxis tickFormatter={(value) => formatToRupees(value)} />
                     <Tooltip formatter={(value) => formatToRupees(Number(value))} />
                     <Legend />
                     <Bar dataKey="sales" fill="#0ea5e9" name="Sales (₹)" />
@@ -451,7 +401,7 @@ const Reports = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recentTransactions.map((transaction) => (
+                    {reportData.recentTransactions.map((transaction) => (
                       <TableRow key={transaction.id}>
                         <TableCell className="font-medium">
                           #{transaction.id}
