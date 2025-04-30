@@ -12,18 +12,55 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ShoppingCart, Plus, Trash2 } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, FileText } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, Timestamp, serverTimestamp, onSnapshot, query, orderBy, limit } from "firebase/firestore";
+import { collection, addDoc, Timestamp, serverTimestamp, onSnapshot, query, orderBy } from "firebase/firestore";
 import { InventoryItem, formatToRupees } from "@/types/inventory";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface SaleItem {
   id: string;
   name: string;
   price: number;
   quantity: number;
+}
+
+interface Transaction {
+  id: string;
+  customerName: string;
+  timestamp: Date;
+  total: number;
+  items: {
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    total: number;
+  }[];
+  subtotal: number;
+  discount: number;
+  discountAmount: number;
+  vatRate: number;
+  vatAmount: number;
 }
 
 const Sales = () => {
@@ -35,7 +72,10 @@ const Sales = () => {
   const [discount, setDiscount] = useState("0");
   const [vatRate, setVatRate] = useState("18"); // GST in India is commonly 18%
   const [isProcessing, setIsProcessing] = useState(false);
-  const [recentSales, setRecentSales] = useState<any[]>([]);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const transactionsPerPage = 10;
   const { toast } = useToast();
   
   // Fetch inventory items for the dropdown
@@ -63,27 +103,28 @@ const Sales = () => {
     return () => unsubscribe();
   }, []);
   
-  // Fetch recent sales
+  // Fetch all transactions
   useEffect(() => {
     const q = query(
       collection(db, "sales"),
-      orderBy("timestamp", "desc"),
-      limit(5)
+      orderBy("timestamp", "desc")
     );
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const salesData: any[] = [];
+      const salesData: Transaction[] = [];
       
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         salesData.push({
           id: doc.id,
           ...data,
-          timestamp: data.timestamp?.toDate() || new Date()
-        });
+          timestamp: data.timestamp?.toDate() || new Date(),
+          customerName: data.customerName || "Walk-in Customer"
+        } as Transaction);
       });
       
-      setRecentSales(salesData);
+      setAllTransactions(salesData);
+      setTotalPages(Math.max(1, Math.ceil(salesData.length / transactionsPerPage)));
     });
     
     return () => unsubscribe();
@@ -132,6 +173,67 @@ const Sales = () => {
   const vatAmount = (afterDiscount * parseFloat(vatRate || "0")) / 100;
   const total = afterDiscount + vatAmount;
 
+  // Generate invoice PDF
+  const generateInvoicePDF = (saleData: any) => {
+    const doc = new jsPDF();
+    
+    // Add header
+    doc.setFontSize(20);
+    doc.text("Invoice", 14, 22);
+    
+    doc.setFontSize(10);
+    doc.text(`Invoice #: ${saleData.id.slice(0, 8)}`, 14, 30);
+    doc.text(`Date: ${new Date(saleData.timestamp).toLocaleDateString()}`, 14, 35);
+    doc.text(`Time: ${new Date(saleData.timestamp).toLocaleTimeString()}`, 14, 40);
+    
+    // Customer info
+    doc.setFontSize(12);
+    doc.text("Bill To:", 14, 50);
+    doc.setFontSize(10);
+    doc.text(saleData.customerName, 14, 55);
+    
+    // Item table
+    doc.setFontSize(12);
+    doc.text("Items:", 14, 65);
+    
+    const tableColumn = ["Item", "Price", "Qty", "Total"];
+    const tableRows: any[] = [];
+    
+    saleData.items.forEach((item: any) => {
+      const itemData = [
+        item.name,
+        formatToRupees(item.price),
+        item.quantity,
+        formatToRupees(item.price * item.quantity)
+      ];
+      tableRows.push(itemData);
+    });
+    
+    // @ts-ignore - jspdf-autotable adds this method
+    doc.autoTable({
+      startY: 70,
+      head: [tableColumn],
+      body: tableRows,
+    });
+    
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    
+    // Summary
+    doc.text("Summary:", 140, finalY);
+    doc.text(`Subtotal: ${formatToRupees(saleData.subtotal)}`, 140, finalY + 5);
+    doc.text(`Discount (${saleData.discount}%): ${formatToRupees(saleData.discountAmount)}`, 140, finalY + 10);
+    doc.text(`GST (${saleData.vatRate}%): ${formatToRupees(saleData.vatAmount)}`, 140, finalY + 15);
+    doc.setFontSize(12);
+    doc.text(`Total: ${formatToRupees(saleData.total)}`, 140, finalY + 22);
+    
+    // Footer
+    doc.setFontSize(10);
+    doc.text("Thank you for your business!", 14, finalY + 30);
+    
+    // Save PDF
+    doc.save(`invoice-${saleData.id.slice(0, 8)}.pdf`);
+  };
+
   const processSale = async () => {
     if (items.length === 0) {
       toast({
@@ -145,7 +247,7 @@ const Sales = () => {
     setIsProcessing(true);
     try {
       // Save transaction to Firestore
-      await addDoc(collection(db, "sales"), {
+      const saleRef = await addDoc(collection(db, "sales"), {
         customerName: customerName || "Walk-in Customer",
         items: items.map(item => ({
           id: item.id,
@@ -164,9 +266,32 @@ const Sales = () => {
         createdBy: "user_id", // This would be replaced by the actual user ID
       });
       
+      // Get the sale data for PDF generation
+      const saleData = {
+        id: saleRef.id,
+        customerName: customerName || "Walk-in Customer",
+        items: items.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          total: item.price * item.quantity
+        })),
+        subtotal,
+        discount: parseFloat(discount || "0"),
+        discountAmount,
+        vatRate: parseFloat(vatRate || "0"),
+        vatAmount,
+        total,
+        timestamp: new Date(),
+      };
+      
+      // Generate PDF invoice
+      generateInvoicePDF(saleData);
+      
       toast({
         title: "Sale Complete",
-        description: `Sale of ${formatToRupees(total)} has been processed successfully.`,
+        description: `Sale of ${formatToRupees(total)} has been processed successfully and invoice has been generated.`,
       });
       
       // Reset form
@@ -183,6 +308,40 @@ const Sales = () => {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Get current page transactions
+  const currentTransactions = allTransactions.slice(
+    (currentPage - 1) * transactionsPerPage,
+    currentPage * transactionsPerPage
+  );
+  
+  // Helper function to generate page numbers for pagination
+  const getPageNumbers = () => {
+    const pageNumbers = [];
+    const maxVisiblePages = 5;
+    
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pageNumbers.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 5; i++) {
+          pageNumbers.push(i);
+        }
+      } else if (currentPage >= totalPages - 2) {
+        for (let i = totalPages - 4; i <= totalPages; i++) {
+          pageNumbers.push(i);
+        }
+      } else {
+        for (let i = currentPage - 2; i <= currentPage + 2; i++) {
+          pageNumbers.push(i);
+        }
+      }
+    }
+    
+    return pageNumbers;
   };
 
   return (
@@ -299,34 +458,89 @@ const Sales = () => {
               </CardContent>
             </Card>
             
-            {/* Recent Sales */}
+            {/* All Transactions */}
             <Card>
               <CardHeader>
-                <CardTitle>Recent Transactions</CardTitle>
+                <CardTitle>All Transactions</CardTitle>
                 <CardDescription>
-                  Last 5 sales transactions
+                  View all previous sales transactions
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {recentSales.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-4">
-                      No recent sales
-                    </p>
-                  ) : (
-                    recentSales.map((sale) => (
-                      <div key={sale.id} className="flex justify-between items-center border-b pb-2">
-                        <div>
-                          <p className="font-medium">{sale.customerName}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(sale.timestamp).toLocaleString()}
-                          </p>
-                        </div>
-                        <p className="font-medium">{formatToRupees(sale.total)}</p>
-                      </div>
-                    ))
-                  )}
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Total</TableHead>
+                        <TableHead>Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {currentTransactions.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
+                            No transactions found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        currentTransactions.map((transaction) => (
+                          <TableRow key={transaction.id}>
+                            <TableCell>
+                              {transaction.timestamp.toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>{transaction.customerName}</TableCell>
+                            <TableCell>{formatToRupees(transaction.total)}</TableCell>
+                            <TableCell>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => generateInvoicePDF(transaction)}
+                              >
+                                <FileText className="h-4 w-4 mr-1" /> Invoice
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
                 </div>
+                
+                {/* Pagination */}
+                {allTransactions.length > 0 && (
+                  <div className="mt-4">
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious 
+                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                            className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                          />
+                        </PaginationItem>
+                        
+                        {getPageNumbers().map(number => (
+                          <PaginationItem key={number}>
+                            <PaginationLink 
+                              isActive={currentPage === number}
+                              onClick={() => setCurrentPage(number)}
+                            >
+                              {number}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ))}
+                        
+                        <PaginationItem>
+                          <PaginationNext 
+                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                            className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -407,7 +621,7 @@ const Sales = () => {
                   ) : (
                     <span className="flex items-center">
                       <ShoppingCart className="mr-2 h-5 w-5" />
-                      Complete Sale
+                      Complete Sale & Generate Invoice
                     </span>
                   )}
                 </Button>
