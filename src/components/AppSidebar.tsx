@@ -12,7 +12,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarTrigger,
-  SidebarFooter
+  SidebarFooter,
+  useSidebar
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { logoutUser } from '@/lib/firebase';
@@ -29,11 +30,14 @@ import {
   Home, 
   LogOut
 } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function AppSidebar() {
   const { userData } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  const { setOpenMobile } = useSidebar();
 
   const handleLogout = async () => {
     try {
@@ -50,6 +54,14 @@ export default function AppSidebar() {
         description: "There was an error logging out",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleNavigation = (path: string) => {
+    navigate(path);
+    // Close sidebar on mobile after navigation
+    if (isMobile) {
+      setOpenMobile(false);
     }
   };
 
@@ -77,35 +89,39 @@ export default function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <a href="/dashboard" className="flex items-center">
-                    <Home className="h-5 w-5 mr-2" />
-                    <span>Dashboard</span>
-                  </a>
+                <SidebarMenuButton 
+                  onClick={() => handleNavigation('/dashboard')}
+                  className="flex items-center"
+                >
+                  <Home className="h-5 w-5 mr-2" />
+                  <span>Dashboard</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <a href="/inventory" className="flex items-center">
-                    <Package className="h-5 w-5 mr-2" />
-                    <span>Inventory</span>
-                  </a>
+                <SidebarMenuButton 
+                  onClick={() => handleNavigation('/inventory')}
+                  className="flex items-center"
+                >
+                  <Package className="h-5 w-5 mr-2" />
+                  <span>Inventory</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <a href="/sales" className="flex items-center">
-                    <ShoppingCart className="h-5 w-5 mr-2" />
-                    <span>Sales</span>
-                  </a>
+                <SidebarMenuButton 
+                  onClick={() => handleNavigation('/sales')}
+                  className="flex items-center"
+                >
+                  <ShoppingCart className="h-5 w-5 mr-2" />
+                  <span>Sales</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <a href="/reports" className="flex items-center">
-                    <FileText className="h-5 w-5 mr-2" />
-                    <span>Reports</span>
-                  </a>
+                <SidebarMenuButton 
+                  onClick={() => handleNavigation('/reports')}
+                  className="flex items-center"
+                >
+                  <FileText className="h-5 w-5 mr-2" />
+                  <span>Reports</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -118,27 +134,30 @@ export default function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <a href="/users" className="flex items-center">
-                      <Users className="h-5 w-5 mr-2" />
-                      <span>Users</span>
-                    </a>
+                  <SidebarMenuButton 
+                    onClick={() => handleNavigation('/users')}
+                    className="flex items-center"
+                  >
+                    <Users className="h-5 w-5 mr-2" />
+                    <span>Users</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <a href="/analytics" className="flex items-center">
-                      <ChartBar className="h-5 w-5 mr-2" />
-                      <span>Analytics</span>
-                    </a>
+                  <SidebarMenuButton 
+                    onClick={() => handleNavigation('/analytics')}
+                    className="flex items-center"
+                  >
+                    <ChartBar className="h-5 w-5 mr-2" />
+                    <span>Analytics</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <a href="/settings" className="flex items-center">
-                      <Settings className="h-5 w-5 mr-2" />
-                      <span>Settings</span>
-                    </a>
+                  <SidebarMenuButton 
+                    onClick={() => handleNavigation('/settings')}
+                    className="flex items-center"
+                  >
+                    <Settings className="h-5 w-5 mr-2" />
+                    <span>Settings</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
