@@ -23,11 +23,13 @@ import {
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { InventoryItem, formatToRupees } from "@/types/inventory";
-import { Package, Plus, Search } from "lucide-react";
+import { Package, Plus, Search, Edit2 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { 
   collection, 
   addDoc, 
+  updateDoc,
+  doc,
   Timestamp, 
   query, 
   orderBy, 
@@ -40,7 +42,8 @@ const Inventory = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [open, setOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [newItem, setNewItem] = useState<Partial<InventoryItem>>({
     name: "",
     sku: "",
@@ -51,6 +54,7 @@ const Inventory = () => {
     reorderLevel: 5,
     description: "",
   });
+  const [editItem, setEditItem] = useState<InventoryItem | null>(null);
   const { toast } = useToast();
 
   const categories = ["Electronics", "Clothing", "Food", "Books", "Other"];
@@ -129,7 +133,7 @@ const Inventory = () => {
         description: "",
       });
       
-      setOpen(false);
+      setAddDialogOpen(false);
       
       toast({
         title: "Item Added",
@@ -143,6 +147,46 @@ const Inventory = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const handleEditItem = async () => {
+    if (!editItem) return;
+
+    try {
+      const itemRef = doc(db, "inventory", editItem.id);
+      const currentTime = Timestamp.now();
+      
+      await updateDoc(itemRef, {
+        name: editItem.name,
+        sku: editItem.sku,
+        category: editItem.category,
+        price: Number(editItem.price),
+        costPrice: Number(editItem.costPrice),
+        quantity: Number(editItem.quantity),
+        reorderLevel: Number(editItem.reorderLevel),
+        description: editItem.description,
+        updatedAt: currentTime,
+      });
+      
+      setEditDialogOpen(false);
+      
+      toast({
+        title: "Item Updated",
+        description: "The inventory item has been updated successfully.",
+      });
+    } catch (error) {
+      console.error("Error updating item:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update inventory item.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openEditDialog = (item: InventoryItem) => {
+    setEditItem({...item});
+    setEditDialogOpen(true);
   };
 
   const filteredItems = items.filter(
@@ -173,7 +217,7 @@ const Inventory = () => {
             />
           </div>
 
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogTrigger asChild>
               <Button className="w-full md:w-auto">
                 <Plus className="h-4 w-4 mr-2" />
@@ -345,8 +389,12 @@ const Inventory = () => {
                     </TableCell>
                     <TableCell className="text-right">{formatToRupees(item.price * item.quantity)}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">
-                        Edit
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => openEditDialog(item)}
+                      >
+                        <Edit2 className="h-4 w-4 mr-1" /> Edit
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -356,6 +404,128 @@ const Inventory = () => {
           </Table>
         </div>
       </div>
+      
+      {/* Edit Item Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Inventory Item</DialogTitle>
+            <DialogDescription>
+              Update the details for this inventory item.
+            </DialogDescription>
+          </DialogHeader>
+          {editItem && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-name" className="text-right">
+                  Name
+                </Label>
+                <Input
+                  id="edit-name"
+                  value={editItem.name}
+                  onChange={(e) => setEditItem({ ...editItem, name: e.target.value })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-sku" className="text-right">
+                  SKU
+                </Label>
+                <Input
+                  id="edit-sku"
+                  value={editItem.sku}
+                  onChange={(e) => setEditItem({ ...editItem, sku: e.target.value })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-category" className="text-right">
+                  Category
+                </Label>
+                <div className="col-span-3">
+                  <Select
+                    value={editItem.category}
+                    onValueChange={(value) => setEditItem({ ...editItem, category: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-price" className="text-right">
+                  Price (₹)
+                </Label>
+                <Input
+                  id="edit-price"
+                  type="number"
+                  value={editItem.price}
+                  onChange={(e) => setEditItem({ ...editItem, price: parseFloat(e.target.value) })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-costPrice" className="text-right">
+                  Cost (₹)
+                </Label>
+                <Input
+                  id="edit-costPrice"
+                  type="number"
+                  value={editItem.costPrice}
+                  onChange={(e) => setEditItem({ ...editItem, costPrice: parseFloat(e.target.value) })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-quantity" className="text-right">
+                  Quantity
+                </Label>
+                <Input
+                  id="edit-quantity"
+                  type="number"
+                  value={editItem.quantity}
+                  onChange={(e) => setEditItem({ ...editItem, quantity: parseInt(e.target.value) })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-reorderLevel" className="text-right">
+                  Reorder Level
+                </Label>
+                <Input
+                  id="edit-reorderLevel"
+                  type="number"
+                  value={editItem.reorderLevel}
+                  onChange={(e) => setEditItem({ ...editItem, reorderLevel: parseInt(e.target.value) })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-description" className="text-right">
+                  Description
+                </Label>
+                <Textarea
+                  id="edit-description"
+                  value={editItem.description}
+                  onChange={(e) => setEditItem({ ...editItem, description: e.target.value })}
+                  className="col-span-3"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={handleEditItem}>Update Item</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };
