@@ -15,7 +15,21 @@ import { Label } from "@/components/ui/label";
 import { ShoppingCart, Plus, Trash2, FileText } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, Timestamp, serverTimestamp, onSnapshot, query, orderBy } from "firebase/firestore";
+import { 
+  collection, 
+  addDoc, 
+  Timestamp, 
+  serverTimestamp, 
+  onSnapshot, 
+  query, 
+  orderBy,
+  doc,
+  updateDoc,
+  getDoc,
+  runTransaction,
+  limit,
+  getDocs
+} from "firebase/firestore";
 import { InventoryItem, formatToRupees } from "@/types/inventory";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import jsPDF from "jspdf";
@@ -246,29 +260,71 @@ const Sales = () => {
     
     setIsProcessing(true);
     try {
-      // Save transaction to Firestore
-      const saleRef = await addDoc(collection(db, "sales"), {
-        customerName: customerName || "Walk-in Customer",
-        items: items.map(item => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          total: item.price * item.quantity
-        })),
-        subtotal,
-        discount: parseFloat(discount || "0"),
-        discountAmount,
-        vatRate: parseFloat(vatRate || "0"),
-        vatAmount,
-        total,
-        timestamp: serverTimestamp(),
-        createdBy: "user_id", // This would be replaced by the actual user ID
-      });
+      // Variables to store sale data for PDF generation
+      let saleId = '';
+      const currentTimestamp = new Date();
       
-      // Get the sale data for PDF generation
+      // Start a transaction to ensure both sale creation and inventory update succeed or fail together
+      await runTransaction(db, async (transaction) => {
+        // First check if we have enough inventory for each item
+        const inventoryChecks = await Promise.all(
+          items.map(async (item) => {
+            const inventoryRef = doc(db, "inventory", item.id);
+            const inventoryDoc = await transaction.get(inventoryRef);
+            
+            if (!inventoryDoc.exists()) {
+              throw new Error(`Product ${item.name} no longer exists in inventory`);
+            }
+            
+            const currentQuantity = inventoryDoc.data().quantity;
+            if (currentQuantity < item.quantity) {
+              throw new Error(`Not enough ${item.name} in stock. Only ${currentQuantity} available.`);
+            }
+            
+            return { ref: inventoryRef, currentQuantity };
+          })
+        );
+        
+        // Create the sale document
+        const saleData = {
+          customerName: customerName || "Walk-in Customer",
+          items: items.map(item => ({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            total: item.price * item.quantity
+          })),
+          subtotal,
+          discount: parseFloat(discount || "0"),
+          discountAmount,
+          vatRate: parseFloat(vatRate || "0"),
+          vatAmount,
+          total,
+          timestamp: serverTimestamp(),
+          createdBy: "user_id", // This would be replaced by the actual user ID
+        };
+        
+        // Add the sale document
+        const saleRef = doc(collection(db, "sales"));
+        saleId = saleRef.id; // Store the ID for later use
+        transaction.set(saleRef, saleData);
+        
+        // Update inventory quantities for each item
+        items.forEach((item, index) => {
+          const { ref, currentQuantity } = inventoryChecks[index];
+          const newQuantity = currentQuantity - item.quantity;
+          
+          transaction.update(ref, { 
+            quantity: newQuantity,
+            updatedAt: serverTimestamp()
+          });
+        });
+      });
+
+      // Prepare sale data for PDF generation (after the transaction)
       const saleData = {
-        id: saleRef.id,
+        id: saleId,
         customerName: customerName || "Walk-in Customer",
         items: items.map(item => ({
           id: item.id,
@@ -283,7 +339,7 @@ const Sales = () => {
         vatRate: parseFloat(vatRate || "0"),
         vatAmount,
         total,
-        timestamp: new Date(),
+        timestamp: currentTimestamp,
       };
       
       // Generate PDF invoice
@@ -291,18 +347,18 @@ const Sales = () => {
       
       toast({
         title: "Sale Complete",
-        description: `Sale of ${formatToRupees(total)} has been processed successfully and invoice has been generated.`,
+        description: `Sale of ${formatToRupees(total)} has been processed successfully and inventory has been updated.`,
       });
       
       // Reset form
       setItems([]);
       setCustomerName("");
       setDiscount("0");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error processing sale:", error);
       toast({
         title: "Error",
-        description: "Failed to process sale. Please try again.",
+        description: error.message || "Failed to process sale. Please try again.",
         variant: "destructive",
       });
     } finally {

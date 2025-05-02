@@ -64,31 +64,36 @@ const Inventory = () => {
       try {
         const q = query(collection(db, "inventory"), orderBy("createdAt", "desc"));
         
-        // Set up real-time listener
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-          const fetchedItems: InventoryItem[] = [];
-          
-          querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            fetchedItems.push({
-              id: doc.id,
-              ...data,
-              createdAt: data.createdAt?.toDate() || new Date(),
-              updatedAt: data.updatedAt?.toDate() || new Date(),
-            } as InventoryItem);
-          });
-          
-          setItems(fetchedItems);
-          setIsLoading(false);
-        }, (error) => {
-          console.error("Error fetching inventory:", error);
-          toast({
-            title: "Error",
-            description: "Failed to load inventory items.",
-            variant: "destructive",
-          });
-          setIsLoading(false);
-        });
+        // Set up real-time listener with a more robust error handler
+        const unsubscribe = onSnapshot(
+          q, 
+          (querySnapshot) => {
+            const fetchedItems: InventoryItem[] = [];
+            
+            querySnapshot.forEach((doc) => {
+              const data = doc.data();
+              fetchedItems.push({
+                id: doc.id,
+                ...data,
+                createdAt: data.createdAt?.toDate() || new Date(),
+                updatedAt: data.updatedAt?.toDate() || new Date(),
+              } as InventoryItem);
+            });
+            
+            console.log("Inventory updated:", fetchedItems.length, "items");
+            setItems(fetchedItems);
+            setIsLoading(false);
+          }, 
+          (error) => {
+            console.error("Error fetching inventory:", error);
+            toast({
+              title: "Error",
+              description: "Failed to load inventory items.",
+              variant: "destructive",
+            });
+            setIsLoading(false);
+          }
+        );
         
         // Clean up listener on component unmount
         return () => unsubscribe();
