@@ -24,7 +24,6 @@ import {
   Users, 
   User, 
   ChartBar, 
-  Receipt, 
   FileText, 
   Settings, 
   Home, 
@@ -59,7 +58,13 @@ export default function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="px-4 py-4">
-        <div className="flex items-center">
+        <div 
+          className="flex items-center cursor-pointer" 
+          onClick={() => navigate('/dashboard')}
+          role="button"
+          tabIndex={0}
+          aria-label="Go to dashboard"
+        >
           <Package className="h-6 w-6 text-stockease-600" />
           <span className="ml-2 text-xl font-bold text-stockease-600">StockEase</span>
         </div>
