@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -50,6 +49,13 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+
+// Add jspdf-autotable type augmentation
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: typeof autoTable;
+  }
+}
 
 interface SaleItem {
   id: string;
@@ -187,65 +193,77 @@ const Sales = () => {
   const vatAmount = (afterDiscount * parseFloat(vatRate || "0")) / 100;
   const total = afterDiscount + vatAmount;
 
-  // Generate invoice PDF
+  // Generate invoice PDF - Fixed implementation
   const generateInvoicePDF = (saleData: any) => {
-    const doc = new jsPDF();
-    
-    // Add header
-    doc.setFontSize(20);
-    doc.text("Invoice", 14, 22);
-    
-    doc.setFontSize(10);
-    doc.text(`Invoice #: ${saleData.id.slice(0, 8)}`, 14, 30);
-    doc.text(`Date: ${new Date(saleData.timestamp).toLocaleDateString()}`, 14, 35);
-    doc.text(`Time: ${new Date(saleData.timestamp).toLocaleTimeString()}`, 14, 40);
-    
-    // Customer info
-    doc.setFontSize(12);
-    doc.text("Bill To:", 14, 50);
-    doc.setFontSize(10);
-    doc.text(saleData.customerName, 14, 55);
-    
-    // Item table
-    doc.setFontSize(12);
-    doc.text("Items:", 14, 65);
-    
-    const tableColumn = ["Item", "Price", "Qty", "Total"];
-    const tableRows: any[] = [];
-    
-    saleData.items.forEach((item: any) => {
-      const itemData = [
+    try {
+      // Create a new jsPDF instance
+      const doc = new jsPDF();
+      
+      // Add header
+      doc.setFontSize(20);
+      doc.text("Invoice", 14, 22);
+      
+      doc.setFontSize(10);
+      doc.text(`Invoice #: ${saleData.id.slice(0, 8)}`, 14, 30);
+      doc.text(`Date: ${new Date(saleData.timestamp).toLocaleDateString()}`, 14, 35);
+      doc.text(`Time: ${new Date(saleData.timestamp).toLocaleTimeString()}`, 14, 40);
+      
+      // Customer info
+      doc.setFontSize(12);
+      doc.text("Bill To:", 14, 50);
+      doc.setFontSize(10);
+      doc.text(saleData.customerName, 14, 55);
+      
+      // Item table
+      doc.setFontSize(12);
+      doc.text("Items:", 14, 65);
+      
+      // Prepare table data
+      const tableColumn = ["Item", "Price", "Qty", "Total"];
+      const tableRows = saleData.items.map((item: any) => [
         item.name,
         formatToRupees(item.price),
         item.quantity,
         formatToRupees(item.price * item.quantity)
-      ];
-      tableRows.push(itemData);
-    });
-    
-    // @ts-ignore - jspdf-autotable adds this method
-    doc.autoTable({
-      startY: 70,
-      head: [tableColumn],
-      body: tableRows,
-    });
-    
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
-    
-    // Summary
-    doc.text("Summary:", 140, finalY);
-    doc.text(`Subtotal: ${formatToRupees(saleData.subtotal)}`, 140, finalY + 5);
-    doc.text(`Discount (${saleData.discount}%): ${formatToRupees(saleData.discountAmount)}`, 140, finalY + 10);
-    doc.text(`GST (${saleData.vatRate}%): ${formatToRupees(saleData.vatAmount)}`, 140, finalY + 15);
-    doc.setFontSize(12);
-    doc.text(`Total: ${formatToRupees(saleData.total)}`, 140, finalY + 22);
-    
-    // Footer
-    doc.setFontSize(10);
-    doc.text("Thank you for your business!", 14, finalY + 30);
-    
-    // Save PDF
-    doc.save(`invoice-${saleData.id.slice(0, 8)}.pdf`);
+      ]);
+      
+      // Generate table using autoTable
+      doc.autoTable({
+        startY: 70,
+        head: [tableColumn],
+        body: tableRows
+      });
+      
+      // Get the final Y position after the table is drawn
+      const finalY = (doc as any).lastAutoTable.finalY + 10;
+      
+      // Summary
+      doc.text("Summary:", 140, finalY);
+      doc.text(`Subtotal: ${formatToRupees(saleData.subtotal)}`, 140, finalY + 5);
+      doc.text(`Discount (${saleData.discount}%): ${formatToRupees(saleData.discountAmount)}`, 140, finalY + 10);
+      doc.text(`GST (${saleData.vatRate}%): ${formatToRupees(saleData.vatAmount)}`, 140, finalY + 15);
+      doc.setFontSize(12);
+      doc.text(`Total: ${formatToRupees(saleData.total)}`, 140, finalY + 22);
+      
+      // Footer
+      doc.setFontSize(10);
+      doc.text("Thank you for your business!", 14, finalY + 30);
+      
+      // Save PDF
+      doc.save(`invoice-${saleData.id.slice(0, 8)}.pdf`);
+      
+      toast({
+        title: "Invoice Generated",
+        description: "The invoice PDF has been successfully generated.",
+      });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate invoice PDF. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const processSale = async () => {
