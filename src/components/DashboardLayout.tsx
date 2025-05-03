@@ -1,7 +1,6 @@
 
 import { SidebarProvider } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/AppSidebar';
-import { useSidebar } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { PanelLeft } from 'lucide-react';
 import { useIsMobile, useSwipeGesture } from '@/hooks/use-mobile';
@@ -9,6 +8,24 @@ import { useIsMobile, useSwipeGesture } from '@/hooks/use-mobile';
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
+
+// Components that need useSidebar will be defined inside the SidebarProvider
+const DashboardContent = ({ children }: { children: React.ReactNode }) => {
+  const isMobile = useIsMobile();
+  
+  return (
+    <div className="min-h-screen flex w-full bg-gradient-to-br from-stockease-50/30 via-white to-indigo-50/30">
+      <AppSidebar />
+      <SidebarToggle />
+      <SwipeHandle />
+      <main className="flex-1 overflow-auto">
+        <div className="container py-6 px-4 md:px-6 dashboard-content animate-fade-in">
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+};
 
 const SidebarToggle = () => {
   const { state, toggleSidebar, openMobile, setOpenMobile } = useSidebar();
@@ -45,7 +62,7 @@ const SidebarToggle = () => {
   );
 };
 
-// New component for the swipe handle
+// Component for the swipe handle
 const SwipeHandle = () => {
   const { setOpenMobile } = useSidebar();
   const isMobile = useIsMobile();
@@ -60,26 +77,14 @@ const SwipeHandle = () => {
   );
 };
 
+// The main DashboardLayout component that provides the SidebarProvider context
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
-  const { setOpenMobile } = useSidebar();
-  
-  // Use the swipe gesture hook
-  useSwipeGesture(() => {
-    setOpenMobile(true);
-  });
-  
+  // This component doesn't use useSidebar hook directly anymore
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gradient-to-br from-stockease-50/30 via-white to-indigo-50/30">
-        <AppSidebar />
-        <SidebarToggle />
-        <SwipeHandle />
-        <main className="flex-1 overflow-auto">
-          <div className="container py-6 px-4 md:px-6 dashboard-content animate-fade-in">
-            {children}
-          </div>
-        </main>
-      </div>
+      <DashboardContent>
+        {children}
+      </DashboardContent>
     </SidebarProvider>
   );
 };
