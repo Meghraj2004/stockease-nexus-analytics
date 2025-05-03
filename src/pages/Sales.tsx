@@ -32,7 +32,7 @@ import {
 import { InventoryItem, formatToRupees } from "@/types/inventory";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 import {
   Table,
   TableBody,
@@ -50,10 +50,13 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
-// Add jspdf-autotable type augmentation
+// Fix the type declaration for jsPDF with autoTable
 declare module 'jspdf' {
   interface jsPDF {
-    autoTable: typeof autoTable;
+    autoTable: (options: any) => jsPDF;
+    lastAutoTable: {
+      finalY: number;
+    };
   }
 }
 
@@ -193,7 +196,7 @@ const Sales = () => {
   const vatAmount = (afterDiscount * parseFloat(vatRate || "0")) / 100;
   const total = afterDiscount + vatAmount;
 
-  // Generate invoice PDF - Fixed implementation
+  // Properly fixed implementation of generateInvoicePDF
   const generateInvoicePDF = (saleData: any) => {
     try {
       // Create a new jsPDF instance
@@ -228,6 +231,7 @@ const Sales = () => {
       ]);
       
       // Generate table using autoTable
+      // The autoTable function is added to the jsPDF prototype by the autoTable import
       doc.autoTable({
         startY: 70,
         head: [tableColumn],
@@ -235,7 +239,7 @@ const Sales = () => {
       });
       
       // Get the final Y position after the table is drawn
-      const finalY = (doc as any).lastAutoTable.finalY + 10;
+      const finalY = doc.lastAutoTable.finalY + 10;
       
       // Summary
       doc.text("Summary:", 140, finalY);
