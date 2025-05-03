@@ -30,7 +30,7 @@ import {
   Home, 
   LogOut
 } from 'lucide-react';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile, useSwipeGesture } from '@/hooks/use-mobile';
 
 export default function AppSidebar() {
   const { userData } = useAuth();
@@ -38,6 +38,16 @@ export default function AppSidebar() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { setOpenMobile } = useSidebar();
+
+  // Use swipe gesture to close the sidebar
+  useSwipeGesture(
+    () => {}, // No action on swipe right
+    () => {
+      if (isMobile) {
+        setOpenMobile(false);
+      }
+    }
+  );
 
   const handleLogout = async () => {
     try {
@@ -72,7 +82,7 @@ export default function AppSidebar() {
       <SidebarHeader className="px-4 py-4">
         <div 
           className="flex items-center cursor-pointer" 
-          onClick={() => navigate('/dashboard')}
+          onClick={() => handleNavigation('/dashboard')}
           role="button"
           tabIndex={0}
           aria-label="Go to dashboard"
