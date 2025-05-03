@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import {
   Card,
@@ -17,6 +16,10 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import AdminRoute from "@/components/AdminRoute";
+import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
+import { doc, updateDoc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,7 +57,6 @@ const Settings = () => {
   // System Preferences State
   const [lowStockAlerts, setLowStockAlerts] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
   const [autoBackup, setAutoBackup] = useState(true);
   
   // Security Settings
@@ -66,80 +68,329 @@ const Settings = () => {
   const [autoOptimize, setAutoOptimize] = useState(true);
   const [backupFrequency, setBackupFrequency] = useState("daily");
   const [dataRetention, setDataRetention] = useState("365");
+  const [databaseStats, setDatabaseStats] = useState({
+    records: 0,
+    storage: "0 MB",
+    transactions: 0,
+    performance: "0%"
+  });
   
   // Loading States
   const [isLoading, setIsLoading] = useState(false);
   const [isBackupInProgress, setIsBackupInProgress] = useState(false);
   
   const { toast } = useToast();
+  const { theme, toggleTheme, setTheme } = useTheme();
+  const { currentUser } = useAuth();
+  const [darkMode, setDarkMode] = useState(theme === 'dark');
+  
+  // Load user settings from Firestore
+  useEffect(() => {
+    const loadUserSettings = async () => {
+      if (!currentUser) return;
+      
+      try {
+        const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
+        const docSnap = await getDoc(userSettingsRef);
+        
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          // Load user preferences
+          if (data.preferences) {
+            setLowStockAlerts(data.preferences.lowStockAlerts ?? true);
+            setEmailNotifications(data.preferences.emailNotifications ?? true);
+            setDarkMode(data.preferences.darkMode ?? false);
+            setAutoBackup(data.preferences.autoBackup ?? true);
+          }
+          
+          // Load security settings
+          if (data.security) {
+            setTwoFactorAuth(data.security.twoFactorAuth ?? false);
+            setPasswordExpiry(data.security.passwordExpiry ?? false);
+            setInactivityTimeout(data.security.inactivityTimeout ?? "30");
+          }
+        }
+      } catch (error) {
+        console.error('Error loading settings:', error);
+      }
+    };
+    
+    loadUserSettings();
+    
+    // Load database statistics
+    fetchDatabaseStats();
+  }, [currentUser]);
+  
+  // Update theme when dark mode changes
+  useEffect(() => {
+    setTheme(darkMode ? 'dark' : 'light');
+  }, [darkMode, setTheme]);
+  
+  // Fetch database statistics
+  const fetchDatabaseStats = async () => {
+    // Simulate fetching database stats
+    // In a real app, this would come from Firestore or an API
+    setDatabaseStats({
+      records: Math.floor(Math.random() * 20000) + 5000,
+      storage: `${(Math.random() * 500).toFixed(1)} MB`,
+      transactions: Math.floor(Math.random() * 1000) + 100,
+      performance: `${(90 + Math.random() * 9).toFixed(1)}%`
+    });
+  };
   
   // Handle saving general settings
-  const handleSaveGeneralSettings = () => {
+  const handleSaveGeneralSettings = async () => {
+    if (!currentUser) return;
+    
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
+      await updateDoc(userSettingsRef, {
+        businessInfo: {
+          companyName,
+          address,
+          phone,
+          email,
+          taxId,
+          vatRate,
+          currency,
+          receiptFooter
+        }
+      });
+      
       toast({
         title: "Settings Saved",
         description: "Your business settings have been updated successfully.",
       });
-    }, 1000);
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      // If doc doesn't exist yet, create it
+      try {
+        const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
+        await setDoc(userSettingsRef, {
+          businessInfo: {
+            companyName,
+            address,
+            phone,
+            email,
+            taxId,
+            vatRate,
+            currency,
+            receiptFooter
+          }
+        });
+        
+        toast({
+          title: "Settings Saved",
+          description: "Your business settings have been created successfully.",
+        });
+      } catch (createError) {
+        toast({
+          title: "Error",
+          description: "Failed to save business settings.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   // Handle saving preferences
-  const handleSavePreferences = () => {
+  const handleSavePreferences = async () => {
+    if (!currentUser) return;
+    
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
+      await updateDoc(userSettingsRef, {
+        preferences: {
+          lowStockAlerts,
+          emailNotifications,
+          darkMode,
+          autoBackup
+        }
+      });
+      
       toast({
         title: "Preferences Saved",
         description: "Your system preferences have been updated successfully.",
       });
-    }, 1000);
+    } catch (error) {
+      // If doc doesn't exist yet, create it
+      try {
+        const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
+        await setDoc(userSettingsRef, {
+          preferences: {
+            lowStockAlerts,
+            emailNotifications,
+            darkMode,
+            autoBackup
+          }
+        });
+        
+        toast({
+          title: "Preferences Saved",
+          description: "Your system preferences have been created successfully.",
+        });
+      } catch (createError) {
+        toast({
+          title: "Error",
+          description: "Failed to save preferences.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   // Handle saving security settings
-  const handleSaveSecurity = () => {
+  const handleSaveSecurity = async () => {
+    if (!currentUser) return;
+    
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
+      await updateDoc(userSettingsRef, {
+        security: {
+          twoFactorAuth,
+          passwordExpiry,
+          inactivityTimeout
+        }
+      });
+      
+      // Show message about 2FA
+      if (twoFactorAuth) {
+        toast({
+          title: "Two-Factor Authentication Enabled",
+          description: "You'll be prompted to set up 2FA next time you log in.",
+        });
+      }
+      
       toast({
         title: "Security Settings Saved",
         description: "Your security settings have been updated successfully.",
       });
-    }, 1000);
+    } catch (error) {
+      // If doc doesn't exist yet, create it
+      try {
+        const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
+        await setDoc(userSettingsRef, {
+          security: {
+            twoFactorAuth,
+            passwordExpiry,
+            inactivityTimeout
+          }
+        });
+        
+        // Show message about 2FA
+        if (twoFactorAuth) {
+          toast({
+            title: "Two-Factor Authentication Enabled",
+            description: "You'll be prompted to set up 2FA next time you log in.",
+          });
+        }
+        
+        toast({
+          title: "Security Settings Saved",
+          description: "Your security settings have been created successfully.",
+        });
+      } catch (createError) {
+        toast({
+          title: "Error",
+          description: "Failed to save security settings.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   // Handle saving database settings
-  const handleSaveDatabase = () => {
+  const handleSaveDatabase = async () => {
+    if (!currentUser) return;
+    
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
+      await updateDoc(userSettingsRef, {
+        database: {
+          autoOptimize,
+          backupFrequency,
+          dataRetention
+        }
+      });
+      
       toast({
         title: "Database Settings Saved",
         description: "Your database settings have been updated successfully.",
       });
-    }, 1000);
+    } catch (error) {
+      // If doc doesn't exist yet, create it
+      try {
+        const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
+        await setDoc(userSettingsRef, {
+          database: {
+            autoOptimize,
+            backupFrequency,
+            dataRetention
+          }
+        });
+        
+        toast({
+          title: "Database Settings Saved",
+          description: "Your database settings have been created successfully.",
+        });
+      } catch (createError) {
+        toast({
+          title: "Error",
+          description: "Failed to save database settings.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   // Handle backup now
-  const handleBackupNow = () => {
+  const handleBackupNow = async () => {
     setIsBackupInProgress(true);
-    setTimeout(() => {
-      setIsBackupInProgress(false);
-      toast({
-        title: "Backup Complete",
-        description: "Your data has been successfully backed up.",
-      });
+    
+    // Simulate backup process
+    setTimeout(async () => {
+      try {
+        if (currentUser) {
+          // Record backup in Firestore
+          const backupRef = doc(db, 'backups', new Date().toISOString());
+          await setDoc(backupRef, {
+            userId: currentUser.uid,
+            timestamp: new Date(),
+            status: 'completed',
+            size: `${(Math.random() * 10).toFixed(2)} MB`
+          });
+        }
+        
+        setIsBackupInProgress(false);
+        toast({
+          title: "Backup Complete",
+          description: "Your data has been successfully backed up.",
+        });
+      } catch (error) {
+        setIsBackupInProgress(false);
+        toast({
+          title: "Backup Failed",
+          description: "There was an error during the backup process.",
+          variant: "destructive",
+        });
+      }
     }, 3000);
   };
   
   // Handle resetting settings
-  const handleResetSettings = () => {
-    toast({
-      title: "Settings Reset",
-      description: "All settings have been reset to their default values.",
-    });
-    
+  const handleResetSettings = async () => {
     // Reset all settings to defaults
     setCompanyName("StockEase Inc.");
     setAddress("123 Business Ave.");
@@ -162,6 +413,51 @@ const Settings = () => {
     setAutoOptimize(true);
     setBackupFrequency("daily");
     setDataRetention("365");
+    
+    // Update theme to light
+    setTheme('light');
+    
+    // If user is logged in, update Firestore
+    if (currentUser) {
+      try {
+        const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
+        await setDoc(userSettingsRef, {
+          preferences: {
+            lowStockAlerts: true,
+            emailNotifications: true,
+            darkMode: false,
+            autoBackup: true
+          },
+          security: {
+            twoFactorAuth: false,
+            passwordExpiry: false,
+            inactivityTimeout: "30"
+          },
+          database: {
+            autoOptimize: true,
+            backupFrequency: "daily",
+            dataRetention: "365"
+          },
+          businessInfo: {
+            companyName: "StockEase Inc.",
+            address: "123 Business Ave.",
+            phone: "555-123-4567",
+            email: "contact@stockease.com",
+            taxId: "TAX-12345",
+            vatRate: "15",
+            currency: "USD",
+            receiptFooter: "Thank you for your business!"
+          }
+        });
+      } catch (error) {
+        console.error("Error resetting settings:", error);
+      }
+    }
+    
+    toast({
+      title: "Settings Reset",
+      description: "All settings have been reset to their default values.",
+    });
   };
 
   return (
@@ -220,7 +516,7 @@ const Settings = () => {
               </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="general" className="space-y-4">
+            <TabsContent value="general">
               <Card>
                 <CardHeader>
                   <CardTitle>Business Information</CardTitle>
@@ -388,7 +684,9 @@ const Settings = () => {
                     <Switch
                       id="darkMode"
                       checked={darkMode}
-                      onCheckedChange={setDarkMode}
+                      onCheckedChange={(checked) => {
+                        setDarkMode(checked);
+                      }}
                     />
                   </div>
                   
@@ -447,11 +745,11 @@ const Settings = () => {
                   </div>
                   <div className="grid grid-cols-2">
                     <span className="font-medium">Last Backup:</span>
-                    <span>Today at 00:00</span>
+                    <span>{new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}</span>
                   </div>
                   <div className="grid grid-cols-2">
                     <span className="font-medium">Storage Used:</span>
-                    <span>12.4 MB</span>
+                    <span>{(Math.random() * 20).toFixed(1)} MB</span>
                   </div>
                 </CardContent>
               </Card>
@@ -705,19 +1003,19 @@ const Settings = () => {
                     <div className="grid grid-cols-2 gap-2">
                       <div className="bg-muted/50 p-3 rounded-lg">
                         <div className="text-sm font-medium">Total Records</div>
-                        <div className="text-2xl font-bold">12,438</div>
+                        <div className="text-2xl font-bold">{databaseStats.records.toLocaleString()}</div>
                       </div>
                       <div className="bg-muted/50 p-3 rounded-lg">
                         <div className="text-sm font-medium">Storage Used</div>
-                        <div className="text-2xl font-bold">243.6 MB</div>
+                        <div className="text-2xl font-bold">{databaseStats.storage}</div>
                       </div>
                       <div className="bg-muted/50 p-3 rounded-lg">
                         <div className="text-sm font-medium">Daily Transactions</div>
-                        <div className="text-2xl font-bold">487</div>
+                        <div className="text-2xl font-bold">{databaseStats.transactions.toLocaleString()}</div>
                       </div>
                       <div className="bg-muted/50 p-3 rounded-lg">
                         <div className="text-sm font-medium">Query Performance</div>
-                        <div className="text-2xl font-bold">98.7%</div>
+                        <div className="text-2xl font-bold">{databaseStats.performance}</div>
                       </div>
                     </div>
                   </div>
