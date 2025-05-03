@@ -1,5 +1,5 @@
 
-import { SidebarProvider } from '@/components/ui/sidebar';
+import { SidebarProvider, useSidebar } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/AppSidebar';
 import { Button } from '@/components/ui/button';
 import { PanelLeft } from 'lucide-react';

@@ -41,12 +41,16 @@ export default function AppSidebar() {
 
   // Use swipe gesture to close the sidebar
   useSwipeGesture(
-    () => {}, // No action on swipe right
+    () => {
+      if (isMobile) {
+        setOpenMobile(true);
+      }
+    }, // Open sidebar on swipe right
     () => {
       if (isMobile) {
         setOpenMobile(false);
       }
-    }
+    } // Close sidebar on swipe left
   );
 
   const handleLogout = async () => {
