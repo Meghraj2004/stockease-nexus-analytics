@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { ShoppingCart, Plus, Trash2, FileText } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { 
   collection, 
@@ -50,14 +50,12 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
-// Fix the type declaration for jsPDF with autoTable
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-    lastAutoTable: {
-      finalY: number;
-    };
-  }
+// Define the jsPDF with autoTable type
+interface jsPDFWithAutoTable extends jsPDF {
+  autoTable: (options: any) => jsPDFWithAutoTable;
+  lastAutoTable: {
+    finalY: number;
+  };
 }
 
 interface SaleItem {
@@ -196,11 +194,12 @@ const Sales = () => {
   const vatAmount = (afterDiscount * parseFloat(vatRate || "0")) / 100;
   const total = afterDiscount + vatAmount;
 
-  // Properly fixed implementation of generateInvoicePDF
+  // Fixed implementation of generateInvoicePDF
   const generateInvoicePDF = (saleData: any) => {
     try {
+      console.log("Starting invoice generation");
       // Create a new jsPDF instance
-      const doc = new jsPDF();
+      const doc = new jsPDF() as jsPDFWithAutoTable;
       
       // Add header
       doc.setFontSize(20);
@@ -215,7 +214,7 @@ const Sales = () => {
       doc.setFontSize(12);
       doc.text("Bill To:", 14, 50);
       doc.setFontSize(10);
-      doc.text(saleData.customerName, 14, 55);
+      doc.text(saleData.customerName || "Walk-in Customer", 14, 55);
       
       // Item table
       doc.setFontSize(12);
@@ -230,12 +229,15 @@ const Sales = () => {
         formatToRupees(item.price * item.quantity)
       ]);
       
-      // Generate table using autoTable
-      // The autoTable function is added to the jsPDF prototype by the autoTable import
+      console.log("Calling autoTable");
+      // Generate the table
       doc.autoTable({
         startY: 70,
         head: [tableColumn],
-        body: tableRows
+        body: tableRows,
+        theme: 'grid',
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [66, 66, 66] }
       });
       
       // Get the final Y position after the table is drawn
@@ -254,6 +256,7 @@ const Sales = () => {
       doc.text("Thank you for your business!", 14, finalY + 30);
       
       // Save PDF
+      console.log("Saving PDF");
       doc.save(`invoice-${saleData.id.slice(0, 8)}.pdf`);
       
       toast({
