@@ -4,9 +4,26 @@ import "jspdf-autotable";
 import { formatToRupees } from "@/types/inventory";
 
 // Define a proper type for jsPDF with autoTable
+interface TableColumn {
+  header?: string;
+  dataKey?: string;
+}
+
+// Properly define the extended jsPDF type with autoTable
 declare module "jspdf" {
   interface jsPDF {
-    autoTable: (options: any) => any;
+    autoTable: (options: {
+      startY?: number;
+      head?: any[][];
+      body: any[][];
+      theme?: string;
+      styles?: any;
+      headStyles?: any;
+      alternateRowStyles?: any;
+      columnStyles?: any;
+      margin?: any;
+      tableWidth?: any;
+    }) => any;
     lastAutoTable: {
       finalY: number;
     };
@@ -27,12 +44,6 @@ export const generateInvoicePDF = (saleData: any) => {
     
     // Create a new jsPDF instance
     const doc = new jsPDF();
-    
-    // Ensure autoTable is properly loaded
-    if (typeof doc.autoTable !== 'function') {
-      console.error("jsPDF autoTable plugin is not properly loaded");
-      return false;
-    }
     
     // Add company header with improved styling
     doc.setFontSize(22);
@@ -90,7 +101,7 @@ export const generateInvoicePDF = (saleData: any) => {
       formatToRupees(item.price * item.quantity)
     ]);
     
-    // Generate the table with autoTable - improved styling
+    // Generate the table with autoTable
     doc.autoTable({
       startY: 90,
       head: [tableColumn],
@@ -167,7 +178,6 @@ export const generateInvoicePDF = (saleData: any) => {
 
 // Updated function to send directly to WhatsApp without redirects
 // Note: For true direct sending without opening the browser, a backend API would be needed
-// This is a frontend-only solution that still opens WhatsApp but with a better template
 export const sendInvoiceToWhatsApp = (saleData: any) => {
   try {
     if (!saleData.customerPhone) {
@@ -241,7 +251,6 @@ For any queries, please contact us:
 };
 
 // Updated function to send email with a better template
-// Note: For true direct sending without a mail client, a backend API would be needed
 export const sendInvoiceByEmail = (saleData: any) => {
   try {
     if (!saleData.customerEmail) {
@@ -311,7 +320,3 @@ Address: ${COMPANY_ADDRESS}
     return false;
   }
 };
-
-// Note: For truly automatic sending without redirects, we would need backend APIs
-// The frontend-only solution above still requires user interaction with mail clients and WhatsApp
-// If a backend is set up later, these functions can be modified to use those APIs
