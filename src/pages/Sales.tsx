@@ -49,14 +49,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-
-// Define the jsPDF with autoTable type
-interface jsPDFWithAutoTable extends jsPDF {
-  autoTable: (options: any) => jsPDFWithAutoTable;
-  lastAutoTable: {
-    finalY: number;
-  };
-}
+import { generateInvoicePDF } from "@/services/invoiceService";
 
 interface SaleItem {
   id: string;
@@ -194,75 +187,23 @@ const Sales = () => {
   const vatAmount = (afterDiscount * parseFloat(vatRate || "0")) / 100;
   const total = afterDiscount + vatAmount;
 
-  // Fixed implementation of generateInvoicePDF
-  const generateInvoicePDF = (saleData: any) => {
+  // Modified to use the imported generateInvoicePDF function
+  const handleGenerateInvoice = (saleData: any) => {
     try {
-      console.log("Starting invoice generation");
-      // Create a new jsPDF instance
-      const doc = new jsPDF() as jsPDFWithAutoTable;
+      const success = generateInvoicePDF(saleData);
       
-      // Add header
-      doc.setFontSize(20);
-      doc.text("Invoice", 14, 22);
-      
-      doc.setFontSize(10);
-      doc.text(`Invoice #: ${saleData.id.slice(0, 8)}`, 14, 30);
-      doc.text(`Date: ${new Date(saleData.timestamp).toLocaleDateString()}`, 14, 35);
-      doc.text(`Time: ${new Date(saleData.timestamp).toLocaleTimeString()}`, 14, 40);
-      
-      // Customer info
-      doc.setFontSize(12);
-      doc.text("Bill To:", 14, 50);
-      doc.setFontSize(10);
-      doc.text(saleData.customerName || "Walk-in Customer", 14, 55);
-      
-      // Item table
-      doc.setFontSize(12);
-      doc.text("Items:", 14, 65);
-      
-      // Prepare table data
-      const tableColumn = ["Item", "Price", "Qty", "Total"];
-      const tableRows = saleData.items.map((item: any) => [
-        item.name,
-        formatToRupees(item.price),
-        item.quantity,
-        formatToRupees(item.price * item.quantity)
-      ]);
-      
-      console.log("Calling autoTable");
-      // Generate the table
-      doc.autoTable({
-        startY: 70,
-        head: [tableColumn],
-        body: tableRows,
-        theme: 'grid',
-        styles: { fontSize: 9 },
-        headStyles: { fillColor: [66, 66, 66] }
-      });
-      
-      // Get the final Y position after the table is drawn
-      const finalY = doc.lastAutoTable.finalY + 10;
-      
-      // Summary
-      doc.text("Summary:", 140, finalY);
-      doc.text(`Subtotal: ${formatToRupees(saleData.subtotal)}`, 140, finalY + 5);
-      doc.text(`Discount (${saleData.discount}%): ${formatToRupees(saleData.discountAmount)}`, 140, finalY + 10);
-      doc.text(`GST (${saleData.vatRate}%): ${formatToRupees(saleData.vatAmount)}`, 140, finalY + 15);
-      doc.setFontSize(12);
-      doc.text(`Total: ${formatToRupees(saleData.total)}`, 140, finalY + 22);
-      
-      // Footer
-      doc.setFontSize(10);
-      doc.text("Thank you for your business!", 14, finalY + 30);
-      
-      // Save PDF
-      console.log("Saving PDF");
-      doc.save(`invoice-${saleData.id.slice(0, 8)}.pdf`);
-      
-      toast({
-        title: "Invoice Generated",
-        description: "The invoice PDF has been successfully generated.",
-      });
+      if (success) {
+        toast({
+          title: "Invoice Generated",
+          description: "The invoice PDF has been successfully generated.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to generate invoice PDF. Please try again.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error("Error generating PDF:", error);
       toast({
@@ -367,8 +308,8 @@ const Sales = () => {
         timestamp: currentTimestamp,
       };
       
-      // Generate PDF invoice
-      generateInvoicePDF(saleData);
+      // Generate PDF invoice using our service
+      handleGenerateInvoice(saleData);
       
       toast({
         title: "Sale Complete",
@@ -577,7 +518,7 @@ const Sales = () => {
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                onClick={() => generateInvoicePDF(transaction)}
+                                onClick={() => handleGenerateInvoice(transaction)}
                               >
                                 <FileText className="h-4 w-4 mr-1" /> Invoice
                               </Button>

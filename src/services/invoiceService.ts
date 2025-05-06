@@ -1,5 +1,6 @@
 
 import jsPDF from "jspdf";
+import "jspdf-autotable";
 import { formatToRupees } from "@/types/inventory";
 
 // Ensure TypeScript recognizes the autoTable method on jsPDF
@@ -14,7 +15,7 @@ export const generateInvoicePDF = (saleData: any) => {
   try {
     console.log("Generating invoice with data:", saleData);
     
-    // Create a new jsPDF instance
+    // Create a new jsPDF instance with autoTable plugin
     const doc = new jsPDF() as jsPDFWithAutoTable;
     
     // Add company header
@@ -57,7 +58,7 @@ export const generateInvoicePDF = (saleData: any) => {
       formatToRupees(item.price * item.quantity)
     ]);
     
-    // Generate the table with better styling
+    // Generate the table with direct method call
     doc.autoTable({
       startY: 70,
       head: [tableColumn],
