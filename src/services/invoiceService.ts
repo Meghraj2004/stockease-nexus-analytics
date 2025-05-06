@@ -52,10 +52,16 @@ export const generateInvoicePDF = (saleData: any) => {
     doc.text("Bill To:", 14, 50);
     doc.setFontSize(10);
     doc.text(saleData.customerName || "Walk-in Customer", 14, 55);
+    if (saleData.customerPhone) {
+      doc.text(`Phone: ${saleData.customerPhone}`, 14, 60);
+    }
+    if (saleData.customerEmail) {
+      doc.text(`Email: ${saleData.customerEmail}`, 14, 65);
+    }
     
     // Item table header
     doc.setFontSize(12);
-    doc.text("Invoice Items:", 14, 65);
+    doc.text("Invoice Items:", 14, 70);
     
     // Prepare table data
     const tableColumn = ["Item", "Price", "Qty", "Total"];
@@ -68,7 +74,7 @@ export const generateInvoicePDF = (saleData: any) => {
     
     // Generate the table with autoTable
     doc.autoTable({
-      startY: 70,
+      startY: 75,
       head: [tableColumn],
       body: tableRows,
       theme: 'grid',
@@ -134,6 +140,122 @@ export const generateInvoicePDF = (saleData: any) => {
     return true;
   } catch (error) {
     console.error("Error in invoice service while generating PDF:", error);
+    return false;
+  }
+};
+
+// New function to create a WhatsApp message with invoice details
+export const sendInvoiceToWhatsApp = (saleData: any) => {
+  try {
+    if (!saleData.customerPhone) {
+      console.error("Customer phone number is missing");
+      return false;
+    }
+    
+    // Format phone number (remove any spaces, dashes, etc)
+    let phoneNumber = saleData.customerPhone.replace(/\D/g, '');
+    
+    // Ensure phone number has country code
+    if (!phoneNumber.startsWith('+')) {
+      // If no country code, assume India (+91)
+      if (!phoneNumber.startsWith('91')) {
+        phoneNumber = '91' + phoneNumber;
+      }
+    } else {
+      // Remove the + if it exists
+      phoneNumber = phoneNumber.substring(1);
+    }
+    
+    // Create message text
+    const message = `
+*INVOICE*
+Invoice #: ${saleData.id.slice(0, 8)}
+Date: ${new Date(saleData.timestamp).toLocaleDateString()}
+
+*Customer Details*
+Name: ${saleData.customerName || "Walk-in Customer"}
+
+*Items*
+${saleData.items.map((item: any) => 
+  `- ${item.name} x ${item.quantity} = ${formatToRupees(item.price * item.quantity)}`
+).join('\n')}
+
+Subtotal: ${formatToRupees(saleData.subtotal)}
+Discount (${saleData.discount}%): ${formatToRupees(saleData.discountAmount)}
+GST (${saleData.vatRate}%): ${formatToRupees(saleData.vatAmount)}
+*Total: ${formatToRupees(saleData.total)}*
+
+Thank you for your business!
+`;
+    
+    // Encode the message for URL
+    const encodedMessage = encodeURIComponent(message);
+    
+    // Create WhatsApp URL
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
+    
+    // Open WhatsApp in a new tab
+    window.open(whatsappUrl, '_blank');
+    
+    console.log("WhatsApp message prepared with URL:", whatsappUrl);
+    return true;
+  } catch (error) {
+    console.error("Error sending invoice to WhatsApp:", error);
+    return false;
+  }
+};
+
+// New function to send email using a simple mailto link
+export const sendInvoiceByEmail = (saleData: any) => {
+  try {
+    if (!saleData.customerEmail) {
+      console.error("Customer email is missing");
+      return false;
+    }
+    
+    // Create email subject
+    const subject = `Invoice #${saleData.id.slice(0, 8)} from Your Company Name`;
+    
+    // Create email body
+    const body = `
+Dear ${saleData.customerName || "Customer"},
+
+Thank you for your purchase. Please find your invoice details below:
+
+Invoice #: ${saleData.id.slice(0, 8)}
+Date: ${new Date(saleData.timestamp).toLocaleDateString()}
+
+Items:
+${saleData.items.map((item: any) => 
+  `- ${item.name} x ${item.quantity} = ${formatToRupees(item.price * item.quantity)}`
+).join('\n')}
+
+Subtotal: ${formatToRupees(saleData.subtotal)}
+Discount (${saleData.discount}%): ${formatToRupees(saleData.discountAmount)}
+GST (${saleData.vatRate}%): ${formatToRupees(saleData.vatAmount)}
+Total: ${formatToRupees(saleData.total)}
+
+Thank you for your business!
+
+Your Company Name
+Phone: +91 1234567890
+Email: contact@yourcompany.com
+`;
+    
+    // Encode the subject and body for URL
+    const encodedSubject = encodeURIComponent(subject);
+    const encodedBody = encodeURIComponent(body);
+    
+    // Create mailto URL
+    const mailtoUrl = `mailto:${saleData.customerEmail}?subject=${encodedSubject}&body=${encodedBody}`;
+    
+    // Open default email client
+    window.location.href = mailtoUrl;
+    
+    console.log("Email prepared with URL:", mailtoUrl);
+    return true;
+  } catch (error) {
+    console.error("Error sending invoice by email:", error);
     return false;
   }
 };

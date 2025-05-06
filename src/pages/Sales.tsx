@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ShoppingCart, Plus, Trash2, FileText } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, FileText, Mail, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { 
@@ -49,7 +49,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { generateInvoicePDF } from "@/services/invoiceService";
+import { generateInvoicePDF, sendInvoiceToWhatsApp, sendInvoiceByEmail } from "@/services/invoiceService";
 
 interface SaleItem {
   id: string;
@@ -61,6 +61,8 @@ interface SaleItem {
 interface Transaction {
   id: string;
   customerName: string;
+  customerPhone?: string;
+  customerEmail?: string;
   timestamp: Date;
   total: number;
   items: {
@@ -83,6 +85,8 @@ const Sales = () => {
   const [selectedItem, setSelectedItem] = useState<string>("");
   const [newItemQuantity, setNewItemQuantity] = useState("1");
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
   const [discount, setDiscount] = useState("0");
   const [vatRate, setVatRate] = useState("18"); // GST in India is commonly 18%
   const [isProcessing, setIsProcessing] = useState(false);
@@ -133,7 +137,9 @@ const Sales = () => {
           id: doc.id,
           ...data,
           timestamp: data.timestamp?.toDate() || new Date(),
-          customerName: data.customerName || "Walk-in Customer"
+          customerName: data.customerName || "Walk-in Customer",
+          customerPhone: data.customerPhone || "",
+          customerEmail: data.customerEmail || ""
         } as Transaction);
       });
       
@@ -187,7 +193,7 @@ const Sales = () => {
   const vatAmount = (afterDiscount * parseFloat(vatRate || "0")) / 100;
   const total = afterDiscount + vatAmount;
 
-  // Modified to use the imported generateInvoicePDF function
+  // Handle PDF generation
   const handleGenerateInvoice = (saleData: any) => {
     try {
       const success = generateInvoicePDF(saleData);
@@ -209,6 +215,60 @@ const Sales = () => {
       toast({
         title: "Error",
         description: "Failed to generate invoice PDF. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle WhatsApp message sending
+  const handleSendWhatsApp = (saleData: any) => {
+    try {
+      const success = sendInvoiceToWhatsApp(saleData);
+      
+      if (success) {
+        toast({
+          title: "WhatsApp Message Prepared",
+          description: "WhatsApp will open with the invoice details.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to prepare WhatsApp message. Please check the phone number.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error sending WhatsApp message:", error);
+      toast({
+        title: "Error",
+        description: "Failed to send WhatsApp message. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle Email sending
+  const handleSendEmail = (saleData: any) => {
+    try {
+      const success = sendInvoiceByEmail(saleData);
+      
+      if (success) {
+        toast({
+          title: "Email Prepared",
+          description: "Your email client will open with the invoice details.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to prepare email. Please check the email address.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error sending email:", error);
+      toast({
+        title: "Error",
+        description: "Failed to send email. Please try again.",
         variant: "destructive",
       });
     }
@@ -251,9 +311,11 @@ const Sales = () => {
           })
         );
         
-        // Create the sale document
+        // Create the sale document with customer contact info
         const saleData = {
           customerName: customerName || "Walk-in Customer",
+          customerPhone: customerPhone || "",
+          customerEmail: customerEmail || "",
           items: items.map(item => ({
             id: item.id,
             name: item.name,
@@ -292,6 +354,8 @@ const Sales = () => {
       const saleData = {
         id: saleId,
         customerName: customerName || "Walk-in Customer",
+        customerPhone: customerPhone || "",
+        customerEmail: customerEmail || "",
         items: items.map(item => ({
           id: item.id,
           name: item.name,
@@ -308,8 +372,16 @@ const Sales = () => {
         timestamp: currentTimestamp,
       };
       
-      // Generate PDF invoice using our service
+      // Generate PDF invoice and send to WhatsApp if phone number is provided
       handleGenerateInvoice(saleData);
+      
+      if (customerPhone) {
+        handleSendWhatsApp(saleData);
+      }
+      
+      if (customerEmail) {
+        handleSendEmail(saleData);
+      }
       
       toast({
         title: "Sale Complete",
@@ -319,6 +391,8 @@ const Sales = () => {
       // Reset form
       setItems([]);
       setCustomerName("");
+      setCustomerPhone("");
+      setCustomerEmail("");
       setDiscount("0");
     } catch (error: any) {
       console.error("Error processing sale:", error);
@@ -496,7 +570,7 @@ const Sales = () => {
                         <TableHead>Date</TableHead>
                         <TableHead>Customer</TableHead>
                         <TableHead>Total</TableHead>
-                        <TableHead>Action</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -515,13 +589,36 @@ const Sales = () => {
                             <TableCell>{transaction.customerName}</TableCell>
                             <TableCell>{formatToRupees(transaction.total)}</TableCell>
                             <TableCell>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => handleGenerateInvoice(transaction)}
-                              >
-                                <FileText className="h-4 w-4 mr-1" /> Invoice
-                              </Button>
+                              <div className="flex space-x-1">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => handleGenerateInvoice(transaction)}
+                                  title="Download Invoice"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </Button>
+                                {transaction.customerPhone && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => handleSendWhatsApp(transaction)}
+                                    title="Send to WhatsApp"
+                                  >
+                                    <Send className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {transaction.customerEmail && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => handleSendEmail(transaction)}
+                                    title="Send Email"
+                                  >
+                                    <Mail className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))
@@ -587,6 +684,29 @@ const Sales = () => {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    placeholder="Customer Phone Number"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">For WhatsApp invoice delivery</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email Address</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Customer Email"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">For email invoice delivery</p>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="discount">Discount (%)</Label>
                   <Input
                     id="discount"
@@ -643,7 +763,7 @@ const Sales = () => {
                   ) : (
                     <span className="flex items-center">
                       <ShoppingCart className="mr-2 h-5 w-5" />
-                      Complete Sale & Generate Invoice
+                      Complete Sale & Send Invoice
                     </span>
                   )}
                 </Button>
