@@ -3,20 +3,28 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { formatToRupees } from "@/types/inventory";
 
-// Ensure TypeScript recognizes the autoTable method on jsPDF
-interface jsPDFWithAutoTable extends jsPDF {
-  autoTable: (options: any) => jsPDFWithAutoTable;
-  lastAutoTable: {
-    finalY: number;
-  };
+// Define a proper type for jsPDF with autoTable
+declare module "jspdf" {
+  interface jsPDF {
+    autoTable: (options: any) => any;
+    lastAutoTable: {
+      finalY: number;
+    };
+  }
 }
 
 export const generateInvoicePDF = (saleData: any) => {
   try {
     console.log("Generating invoice with data:", saleData);
     
-    // Create a new jsPDF instance with autoTable plugin
-    const doc = new jsPDF() as jsPDFWithAutoTable;
+    // Create a new jsPDF instance
+    const doc = new jsPDF();
+    
+    // Ensure autoTable is properly loaded
+    if (typeof doc.autoTable !== 'function') {
+      console.error("jsPDF autoTable plugin is not properly loaded");
+      return false;
+    }
     
     // Add company header
     doc.setFontSize(20);
@@ -58,7 +66,7 @@ export const generateInvoicePDF = (saleData: any) => {
       formatToRupees(item.price * item.quantity)
     ]);
     
-    // Generate the table with direct method call
+    // Generate the table with autoTable
     doc.autoTable({
       startY: 70,
       head: [tableColumn],
@@ -119,7 +127,7 @@ export const generateInvoicePDF = (saleData: any) => {
     doc.text("Payment Terms: Due on receipt", 14, finalY + 40);
     doc.text("Thank you for your business!", 14, finalY + 45);
     
-    // Save PDF
+    // Save PDF with a proper name
     doc.save(`invoice-${saleData.id.slice(0, 8)}.pdf`);
     
     console.log("PDF successfully generated and saved");
