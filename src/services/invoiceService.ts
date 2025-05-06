@@ -13,6 +13,14 @@ declare module "jspdf" {
   }
 }
 
+// Constants for branding
+const COMPANY_NAME = "ShopSmart POS";
+const COMPANY_TAGLINE = "Smart Solutions for Smart Businesses";
+const COMPANY_ADDRESS = "123 Business Street, City, Country";
+const COMPANY_PHONE = "+91 9421612110";
+const COMPANY_EMAIL = "contact@shopsmartpos.com";
+const COMPANY_WEBSITE = "www.shopsmartpos.com";
+
 export const generateInvoicePDF = (saleData: any) => {
   try {
     console.log("Generating invoice with data:", saleData);
@@ -26,42 +34,52 @@ export const generateInvoicePDF = (saleData: any) => {
       return false;
     }
     
-    // Add company header
-    doc.setFontSize(20);
-    doc.text("Your Company Name", 14, 22);
+    // Add company header with improved styling
+    doc.setFontSize(22);
+    doc.setTextColor(41, 128, 185); // Blue color for company name
+    doc.text(COMPANY_NAME, 14, 22);
     
     doc.setFontSize(10);
-    doc.text("Address: 123 Business Street, City, Country", 14, 28);
-    doc.text("Phone: +91 1234567890", 14, 33);
-    doc.text("Email: contact@yourcompany.com", 14, 38);
+    doc.setTextColor(100, 100, 100); // Gray color for details
+    doc.text(COMPANY_TAGLINE, 14, 28);
+    doc.text(`Address: ${COMPANY_ADDRESS}`, 14, 33);
+    doc.text(`Phone: ${COMPANY_PHONE}`, 14, 38);
+    doc.text(`Email: ${COMPANY_EMAIL}`, 14, 43);
+    doc.text(`Website: ${COMPANY_WEBSITE}`, 14, 48);
     
     // Invoice details
-    doc.setFontSize(15);
-    doc.text("INVOICE", 170, 20, { align: "right" });
+    doc.setFontSize(16);
+    doc.setTextColor(41, 128, 185);
+    doc.text("INVOICE", 170, 22, { align: "right" });
     doc.setFontSize(10);
-    doc.text(`Invoice #: ${saleData.id.slice(0, 8)}`, 170, 28, { align: "right" });
-    doc.text(`Date: ${new Date(saleData.timestamp).toLocaleDateString()}`, 170, 33, { align: "right" });
-    doc.text(`Time: ${new Date(saleData.timestamp).toLocaleTimeString()}`, 170, 38, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Invoice #: ${saleData.id.slice(0, 8)}`, 170, 30, { align: "right" });
+    doc.text(`Date: ${new Date(saleData.timestamp).toLocaleDateString()}`, 170, 35, { align: "right" });
+    doc.text(`Time: ${new Date(saleData.timestamp).toLocaleTimeString()}`, 170, 40, { align: "right" });
     
     // Add a line separator
     doc.setLineWidth(0.5);
-    doc.line(14, 42, 196, 42);
+    doc.setDrawColor(41, 128, 185);
+    doc.line(14, 52, 196, 52);
     
     // Customer info
     doc.setFontSize(12);
-    doc.text("Bill To:", 14, 50);
+    doc.setTextColor(41, 128, 185);
+    doc.text("Bill To:", 14, 60);
     doc.setFontSize(10);
-    doc.text(saleData.customerName || "Walk-in Customer", 14, 55);
+    doc.setTextColor(0, 0, 0);
+    doc.text(saleData.customerName || "Walk-in Customer", 14, 65);
     if (saleData.customerPhone) {
-      doc.text(`Phone: ${saleData.customerPhone}`, 14, 60);
+      doc.text(`Phone: ${saleData.customerPhone}`, 14, 70);
     }
     if (saleData.customerEmail) {
-      doc.text(`Email: ${saleData.customerEmail}`, 14, 65);
+      doc.text(`Email: ${saleData.customerEmail}`, 14, 75);
     }
     
     // Item table header
     doc.setFontSize(12);
-    doc.text("Invoice Items:", 14, 70);
+    doc.setTextColor(41, 128, 185);
+    doc.text("Invoice Items:", 14, 85);
     
     // Prepare table data
     const tableColumn = ["Item", "Price", "Qty", "Total"];
@@ -72,9 +90,9 @@ export const generateInvoicePDF = (saleData: any) => {
       formatToRupees(item.price * item.quantity)
     ]);
     
-    // Generate the table with autoTable
+    // Generate the table with autoTable - improved styling
     doc.autoTable({
-      startY: 75,
+      startY: 90,
       head: [tableColumn],
       body: tableRows,
       theme: 'grid',
@@ -131,7 +149,10 @@ export const generateInvoicePDF = (saleData: any) => {
     doc.setFontSize(10);
     doc.setFont(undefined, 'normal');
     doc.text("Payment Terms: Due on receipt", 14, finalY + 40);
-    doc.text("Thank you for your business!", 14, finalY + 45);
+    doc.text(`Thank you for shopping with ${COMPANY_NAME}!`, 14, finalY + 45);
+    doc.setTextColor(100, 100, 100);
+    doc.setFontSize(8);
+    doc.text("Generated with ShopSmart POS Software", 14, finalY + 50);
     
     // Save PDF with a proper name
     doc.save(`invoice-${saleData.id.slice(0, 8)}.pdf`);
@@ -144,7 +165,9 @@ export const generateInvoicePDF = (saleData: any) => {
   }
 };
 
-// New function to create a WhatsApp message with invoice details
+// Updated function to send directly to WhatsApp without redirects
+// Note: For true direct sending without opening the browser, a backend API would be needed
+// This is a frontend-only solution that still opens WhatsApp but with a better template
 export const sendInvoiceToWhatsApp = (saleData: any) => {
   try {
     if (!saleData.customerPhone) {
@@ -166,26 +189,38 @@ export const sendInvoiceToWhatsApp = (saleData: any) => {
       phoneNumber = phoneNumber.substring(1);
     }
     
-    // Create message text
+    // Create beautifully formatted message
     const message = `
-*INVOICE*
-Invoice #: ${saleData.id.slice(0, 8)}
-Date: ${new Date(saleData.timestamp).toLocaleDateString()}
+*${COMPANY_NAME}*
+_${COMPANY_TAGLINE}_
+---------------------------------------
 
-*Customer Details*
+📋 *INVOICE #${saleData.id.slice(0, 8)}*
+📅 Date: ${new Date(saleData.timestamp).toLocaleDateString()}
+⏰ Time: ${new Date(saleData.timestamp).toLocaleTimeString()}
+
+👤 *Customer Details*
 Name: ${saleData.customerName || "Walk-in Customer"}
+${saleData.customerPhone ? `Phone: ${saleData.customerPhone}` : ''}
+${saleData.customerEmail ? `Email: ${saleData.customerEmail}` : ''}
 
-*Items*
-${saleData.items.map((item: any) => 
-  `- ${item.name} x ${item.quantity} = ${formatToRupees(item.price * item.quantity)}`
+🛒 *Your Purchase*
+${saleData.items.map((item: any, index: number) => 
+  `${index + 1}. ${item.name} x ${item.quantity} = ${formatToRupees(item.price * item.quantity)}`
 ).join('\n')}
 
+💰 *Payment Summary*
 Subtotal: ${formatToRupees(saleData.subtotal)}
 Discount (${saleData.discount}%): ${formatToRupees(saleData.discountAmount)}
 GST (${saleData.vatRate}%): ${formatToRupees(saleData.vatAmount)}
-*Total: ${formatToRupees(saleData.total)}*
+*Total Amount: ${formatToRupees(saleData.total)}*
 
-Thank you for your business!
+Thank you for your business! We appreciate your trust in ${COMPANY_NAME}.
+
+For any queries, please contact us:
+📞 ${COMPANY_PHONE}
+📧 ${COMPANY_EMAIL}
+🌐 ${COMPANY_WEBSITE}
 `;
     
     // Encode the message for URL
@@ -205,7 +240,8 @@ Thank you for your business!
   }
 };
 
-// New function to send email using a simple mailto link
+// Updated function to send email with a better template
+// Note: For true direct sending without a mail client, a backend API would be needed
 export const sendInvoiceByEmail = (saleData: any) => {
   try {
     if (!saleData.customerEmail) {
@@ -214,32 +250,48 @@ export const sendInvoiceByEmail = (saleData: any) => {
     }
     
     // Create email subject
-    const subject = `Invoice #${saleData.id.slice(0, 8)} from Your Company Name`;
+    const subject = `Invoice #${saleData.id.slice(0, 8)} from ${COMPANY_NAME}`;
     
-    // Create email body
+    // Create email body with better formatting
     const body = `
-Dear ${saleData.customerName || "Customer"},
+Dear ${saleData.customerName || "Valued Customer"},
 
-Thank you for your purchase. Please find your invoice details below:
+Thank you for your purchase from ${COMPANY_NAME}. Please find your invoice details below:
 
-Invoice #: ${saleData.id.slice(0, 8)}
+-----------------------------------------
+INVOICE #${saleData.id.slice(0, 8)}
 Date: ${new Date(saleData.timestamp).toLocaleDateString()}
+Time: ${new Date(saleData.timestamp).toLocaleTimeString()}
+-----------------------------------------
 
-Items:
-${saleData.items.map((item: any) => 
-  `- ${item.name} x ${item.quantity} = ${formatToRupees(item.price * item.quantity)}`
+CUSTOMER INFORMATION:
+Name: ${saleData.customerName || "Walk-in Customer"}
+${saleData.customerPhone ? `Phone: ${saleData.customerPhone}` : ''}
+${saleData.customerEmail ? `Email: ${saleData.customerEmail}` : ''}
+
+PURCHASED ITEMS:
+${saleData.items.map((item: any, index: number) => 
+  `${index + 1}. ${item.name} x ${item.quantity} = ${formatToRupees(item.price * item.quantity)}`
 ).join('\n')}
 
+PAYMENT SUMMARY:
 Subtotal: ${formatToRupees(saleData.subtotal)}
 Discount (${saleData.discount}%): ${formatToRupees(saleData.discountAmount)}
 GST (${saleData.vatRate}%): ${formatToRupees(saleData.vatAmount)}
-Total: ${formatToRupees(saleData.total)}
+Total Amount: ${formatToRupees(saleData.total)}
 
-Thank you for your business!
+Payment Terms: Due on receipt
 
-Your Company Name
-Phone: +91 1234567890
-Email: contact@yourcompany.com
+Thank you for your business! We value your patronage.
+
+Best regards,
+The ${COMPANY_NAME} Team
+
+Contact Information:
+Phone: ${COMPANY_PHONE}
+Email: ${COMPANY_EMAIL}
+Website: ${COMPANY_WEBSITE}
+Address: ${COMPANY_ADDRESS}
 `;
     
     // Encode the subject and body for URL
@@ -259,3 +311,7 @@ Email: contact@yourcompany.com
     return false;
   }
 };
+
+// Note: For truly automatic sending without redirects, we would need backend APIs
+// The frontend-only solution above still requires user interaction with mail clients and WhatsApp
+// If a backend is set up later, these functions can be modified to use those APIs
