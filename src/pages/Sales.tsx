@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ShoppingCart, Plus, Trash2, FileText, Mail, Send } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, FileText, Mail, Send, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { 
@@ -31,8 +32,6 @@ import {
 } from "firebase/firestore";
 import { InventoryItem, formatToRupees } from "@/types/inventory";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import {
   Table,
   TableBody,
@@ -50,6 +49,16 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { generateInvoicePDF, sendInvoiceToWhatsApp, sendInvoiceByEmail } from "@/services/invoiceService";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog";
 
 interface SaleItem {
   id: string;
@@ -95,6 +104,11 @@ const Sales = () => {
   const [totalPages, setTotalPages] = useState(1);
   const transactionsPerPage = 10;
   const { toast } = useToast();
+  
+  // Edit transaction states
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editingTransactionId, setEditingTransactionId] = useState<string>("");
   
   // Fetch inventory items for the dropdown
   useEffect(() => {
@@ -182,6 +196,116 @@ const Sales = () => {
     );
   };
 
+  // Start editing transaction
+  const startEditTransaction = (transaction: Transaction) => {
+    setIsEditMode(true);
+    setEditingTransaction(transaction);
+    setEditingTransactionId(transaction.id);
+    
+    // Populate form with transaction data
+    setCustomerName(transaction.customerName);
+    setCustomerPhone(transaction.customerPhone || "");
+    setCustomerEmail(transaction.customerEmail || "");
+    setDiscount(transaction.discount.toString());
+    setVatRate(transaction.vatRate.toString());
+    
+    // Map transaction items to sale items
+    const saleItems: SaleItem[] = transaction.items.map(item => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity
+    }));
+    
+    setItems(saleItems);
+    
+    // Scroll to the top of the form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Cancel edit mode
+  const cancelEdit = () => {
+    setIsEditMode(false);
+    setEditingTransaction(null);
+    setEditingTransactionId("");
+    
+    // Reset form
+    setItems([]);
+    setCustomerName("");
+    setCustomerPhone("");
+    setCustomerEmail("");
+    setDiscount("0");
+    setVatRate("18");
+  };
+
+  // Save edited transaction
+  const saveEditedTransaction = async () => {
+    if (items.length === 0) {
+      toast({
+        title: "No Items",
+        description: "Please add items before saving the transaction.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsProcessing(true);
+    try {
+      const updatedSubtotal = items.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      );
+      
+      const updatedDiscountAmount = (updatedSubtotal * parseFloat(discount || "0")) / 100;
+      const afterDiscount = updatedSubtotal - updatedDiscountAmount;
+      
+      const updatedVatAmount = (afterDiscount * parseFloat(vatRate || "0")) / 100;
+      const updatedTotal = afterDiscount + updatedVatAmount;
+      
+      // Update the transaction in Firestore
+      const transactionRef = doc(db, "sales", editingTransactionId);
+      
+      const updatedTransactionData = {
+        customerName: customerName || "Walk-in Customer",
+        customerPhone: customerPhone || "",
+        customerEmail: customerEmail || "",
+        items: items.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          total: item.price * item.quantity
+        })),
+        subtotal: updatedSubtotal,
+        discount: parseFloat(discount || "0"),
+        discountAmount: updatedDiscountAmount,
+        vatRate: parseFloat(vatRate || "0"),
+        vatAmount: updatedVatAmount,
+        total: updatedTotal,
+        updatedAt: serverTimestamp(),
+      };
+      
+      await updateDoc(transactionRef, updatedTransactionData);
+      
+      toast({
+        title: "Transaction Updated",
+        description: "The transaction has been successfully updated.",
+      });
+      
+      // Exit edit mode
+      cancelEdit();
+    } catch (error: any) {
+      console.error("Error updating transaction:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update the transaction. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const subtotal = items.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
@@ -201,7 +325,7 @@ const Sales = () => {
       if (success) {
         toast({
           title: "Invoice Generated",
-          description: "The invoice PDF has been successfully generated.",
+          description: "The invoice PDF has been successfully generated and downloaded.",
         });
       } else {
         toast({
@@ -444,9 +568,13 @@ const Sales = () => {
     <DashboardLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">New Sale</h1>
+          <h1 className="text-3xl font-bold">
+            {isEditMode ? "Edit Transaction" : "New Sale"}
+          </h1>
           <p className="text-muted-foreground">
-            Process a new sales transaction
+            {isEditMode 
+              ? "Update an existing sales transaction" 
+              : "Process a new sales transaction"}
           </p>
         </div>
 
@@ -456,7 +584,7 @@ const Sales = () => {
               <CardHeader>
                 <CardTitle>Cart Items</CardTitle>
                 <CardDescription>
-                  Add items to the current sale
+                  {isEditMode ? "Edit items in this transaction" : "Add items to the current sale"}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -618,6 +746,15 @@ const Sales = () => {
                                     <Mail className="h-4 w-4" />
                                   </Button>
                                 )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => startEditTransaction(transaction)}
+                                  title="Edit Transaction"
+                                  disabled={isEditMode}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -667,7 +804,7 @@ const Sales = () => {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Sale Details</CardTitle>
+                <CardTitle>{isEditMode ? "Edit Transaction Details" : "Sale Details"}</CardTitle>
                 <CardDescription>
                   Customer information and payment
                 </CardDescription>
@@ -748,25 +885,54 @@ const Sales = () => {
                   </div>
                 </div>
               </CardContent>
-              <CardFooter>
-                <Button 
-                  className="w-full" 
-                  size="lg" 
-                  onClick={processSale}
-                  disabled={items.length === 0 || isProcessing}
-                >
-                  {isProcessing ? (
-                    <span className="flex items-center">
-                      <div className="animate-spin mr-2 h-4 w-4 border-2 border-b-transparent border-white rounded-full"></div>
-                      Processing...
-                    </span>
-                  ) : (
-                    <span className="flex items-center">
-                      <ShoppingCart className="mr-2 h-5 w-5" />
-                      Complete Sale & Send Invoice
-                    </span>
-                  )}
-                </Button>
+              <CardFooter className={isEditMode ? "flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4 sm:justify-between" : ""}>
+                {isEditMode ? (
+                  <>
+                    <Button 
+                      variant="outline" 
+                      onClick={cancelEdit}
+                      disabled={isProcessing}
+                      className="w-full sm:w-auto"
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      className="w-full sm:w-auto" 
+                      onClick={saveEditedTransaction}
+                      disabled={isProcessing}
+                    >
+                      {isProcessing ? (
+                        <span className="flex items-center">
+                          <div className="animate-spin mr-2 h-4 w-4 border-2 border-b-transparent border-white rounded-full"></div>
+                          Saving...
+                        </span>
+                      ) : (
+                        <span className="flex items-center">
+                          Save Changes
+                        </span>
+                      )}
+                    </Button>
+                  </>
+                ) : (
+                  <Button 
+                    className="w-full" 
+                    size="lg" 
+                    onClick={processSale}
+                    disabled={items.length === 0 || isProcessing}
+                  >
+                    {isProcessing ? (
+                      <span className="flex items-center">
+                        <div className="animate-spin mr-2 h-4 w-4 border-2 border-b-transparent border-white rounded-full"></div>
+                        Processing...
+                      </span>
+                    ) : (
+                      <span className="flex items-center">
+                        <ShoppingCart className="mr-2 h-5 w-5" />
+                        Complete Sale & Send Invoice
+                      </span>
+                    )}
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           </div>
