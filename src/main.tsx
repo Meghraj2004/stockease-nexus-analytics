@@ -7,7 +7,6 @@ import "./styles/darkMode.css";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 
-// Remove the conflicting declaration since it's already defined in invoiceService.ts
-// This was causing the TypeScript error
+// The type declaration is now handled in invoiceService.ts
 
 createRoot(document.getElementById("root")!).render(<App />);

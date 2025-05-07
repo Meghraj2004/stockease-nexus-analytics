@@ -2,6 +2,7 @@
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { formatToRupees } from "@/types/inventory";
+import { toast } from "@/hooks/use-toast";
 
 // Define a proper type for jsPDF with autoTable
 interface TableColumn {
@@ -38,12 +39,34 @@ const COMPANY_PHONE = "+91 9421612110";
 const COMPANY_EMAIL = "contact@shopsmartpos.com";
 const COMPANY_WEBSITE = "www.shopsmartpos.com";
 
+// Helper function to download the PDF using browser's built-in functionality
+const downloadPDF = (pdf: jsPDF, filename: string) => {
+  try {
+    // Convert the PDF to a data URL and create a download link
+    const pdfDataUri = pdf.output('datauristring');
+    const link = document.createElement('a');
+    link.href = pdfDataUri;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return true;
+  } catch (error) {
+    console.error("Error in downloadPDF function:", error);
+    return false;
+  }
+};
+
 export const generateInvoicePDF = (saleData: any) => {
   try {
     console.log("Generating invoice with data:", saleData);
     
-    // Create a new jsPDF instance
-    const doc = new jsPDF();
+    // Create a new jsPDF instance with more reliable settings
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
     
     // Add company header with improved styling
     doc.setFontSize(22);
@@ -101,36 +124,52 @@ export const generateInvoicePDF = (saleData: any) => {
       formatToRupees(item.price * item.quantity)
     ]);
     
-    // Generate the table with autoTable
-    doc.autoTable({
-      startY: 90,
-      head: [tableColumn],
-      body: tableRows,
-      theme: 'grid',
-      styles: { 
-        fontSize: 9,
-        cellPadding: 3
-      },
-      headStyles: { 
-        fillColor: [41, 128, 185],
-        textColor: 255,
-        fontSize: 10,
-        fontStyle: 'bold',
-        halign: 'center'
-      },
-      alternateRowStyles: {
-        fillColor: [240, 240, 240]
-      },
-      columnStyles: {
-        0: { cellWidth: 'auto' },
-        1: { cellWidth: 'auto', halign: 'right' },
-        2: { cellWidth: 'auto', halign: 'center' },
-        3: { cellWidth: 'auto', halign: 'right' }
-      }
-    });
+    // Generate the table with autoTable with error handling
+    try {
+      doc.autoTable({
+        startY: 90,
+        head: [tableColumn],
+        body: tableRows,
+        theme: 'grid',
+        styles: { 
+          fontSize: 9,
+          cellPadding: 3
+        },
+        headStyles: { 
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontSize: 10,
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        alternateRowStyles: {
+          fillColor: [240, 240, 240]
+        },
+        columnStyles: {
+          0: { cellWidth: 'auto' },
+          1: { cellWidth: 'auto', halign: 'right' },
+          2: { cellWidth: 'auto', halign: 'center' },
+          3: { cellWidth: 'auto', halign: 'right' }
+        }
+      });
+    } catch (autoTableError) {
+      console.error("Error in autoTable:", autoTableError);
+      // Create a simple table as fallback
+      doc.text("Items:", 14, 90);
+      let yPos = 100;
+      tableRows.forEach((row: any[], index: number) => {
+        doc.text(`${index + 1}. ${row[0]} - ${row[1]} × ${row[2]} = ${row[3]}`, 20, yPos);
+        yPos += 10;
+      });
+    }
     
     // Get the final Y position after the table is drawn
-    const finalY = doc.lastAutoTable.finalY + 10;
+    let finalY;
+    try {
+      finalY = doc.lastAutoTable.finalY + 10;
+    } catch (error) {
+      finalY = 150; // Fallback position if lastAutoTable is not available
+    }
     
     // Summary
     doc.setFontSize(10);
@@ -165,13 +204,33 @@ export const generateInvoicePDF = (saleData: any) => {
     doc.setFontSize(8);
     doc.text("Generated with ShopSmart POS Software", 14, finalY + 50);
     
-    // Save PDF with a proper name
-    doc.save(`invoice-${saleData.id.slice(0, 8)}.pdf`);
+    // Use the browser's built-in download functionality
+    const filename = `invoice-${saleData.id.slice(0, 8)}.pdf`;
+    const success = downloadPDF(doc, filename);
     
-    console.log("PDF successfully generated and saved");
-    return true;
+    if (success) {
+      toast({
+        title: "Success!",
+        description: "Invoice PDF has been downloaded successfully.",
+      });
+      console.log("PDF successfully generated and downloaded");
+      return true;
+    } else {
+      console.error("Failed to download PDF");
+      toast({
+        title: "Error",
+        description: "Failed to download invoice. Please try again.",
+        variant: "destructive",
+      });
+      return false;
+    }
   } catch (error) {
     console.error("Error in invoice service while generating PDF:", error);
+    toast({
+      title: "Error",
+      description: "Failed to generate invoice PDF. Please try again.",
+      variant: "destructive",
+    });
     return false;
   }
 };
