@@ -1,4 +1,3 @@
-
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy, limit, where, Timestamp, getDocs } from "firebase/firestore";
 import { useState, useEffect } from "react";
@@ -237,7 +236,7 @@ export const useSalesReportData = (timeRange: string) => {
     });
   };
 
-  // Export functions for reports
+  // Enhanced Export functions for reports
   const exportToPDF = () => {
     try {
       const doc = new jsPDF();
@@ -322,61 +321,335 @@ export const useSalesReportData = (timeRange: string) => {
     }
   };
 
+  // Enhanced Excel export function for more complete and formatted data
   const exportToExcel = () => {
     try {
-      // Create workbook
+      // Create workbook with proper formatting
       const wb = XLSX.utils.book_new();
       
-      // Monthly sales worksheet
-      const monthlySalesData = data.monthlySalesData.map(item => ({
-        Month: item.name,
-        Sales: item.sales
-      }));
-      
-      const mSheet = XLSX.utils.json_to_sheet(monthlySalesData);
-      XLSX.utils.book_append_sheet(wb, mSheet, "Monthly Sales");
-      
-      // Top products worksheet
-      const topProductsData = data.topProducts.map(item => ({
-        Product: item.name,
-        Sales: item.value
-      }));
-      
-      const pSheet = XLSX.utils.json_to_sheet(topProductsData);
-      XLSX.utils.book_append_sheet(wb, pSheet, "Top Products");
-      
-      // Transactions worksheet
-      const transactionsData = data.recentTransactions.map(item => ({
-        "Transaction ID": item.id,
-        Date: item.date,
-        Customer: item.customer,
-        Items: item.items,
-        Total: item.total
-      }));
-      
-      const tSheet = XLSX.utils.json_to_sheet(transactionsData);
-      XLSX.utils.book_append_sheet(wb, tSheet, "Transactions");
-      
-      // Summary worksheet
-      const summaryData = [
-        { Metric: "Total Sales", Value: data.summary.totalSales },
-        { Metric: "Transactions", Value: data.summary.transactions },
-        { Metric: "Average Sale", Value: data.summary.averageSale },
-        { Metric: "Profit Margin", Value: `${data.summary.profitMargin.toFixed(1)}%` }
+      // Create a formatted header for the workbook
+      const headerData = [
+        [`Sales Report - ${timeRange.charAt(0).toUpperCase() + timeRange.slice(1)}`],
+        [`Generated on ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`],
+        [],
       ];
       
-      const sSheet = XLSX.utils.json_to_sheet(summaryData);
+      // Summary worksheet with detailed information
+      const summaryData = [
+        ...headerData,
+        ["Sales Summary"],
+        [],
+        ["Metric", "Value"],
+        ["Total Sales", formatToRupees(data.summary.totalSales)],
+        ["Number of Transactions", data.summary.transactions],
+        ["Average Sale Value", formatToRupees(data.summary.averageSale)],
+        ["Profit Margin", `${data.summary.profitMargin.toFixed(1)}%`],
+        ["Time Period", timeRange.charAt(0).toUpperCase() + timeRange.slice(1)],
+        []
+      ];
+      
+      const sSheet = XLSX.utils.aoa_to_sheet(summaryData);
       XLSX.utils.book_append_sheet(wb, sSheet, "Summary");
       
-      // Generate the Excel file
-      XLSX.writeFile(wb, `sales-report-${timeRange}-${new Date().toISOString().split('T')[0]}.xlsx`);
+      // Enhanced Monthly sales worksheet with proper formatting
+      const monthlyHeader = [
+        ...headerData,
+        ["Monthly Sales Breakdown"],
+        [],
+        ["Month", "Sales Value", "Formatted Value"]
+      ];
       
+      const monthlySalesData = [
+        ...monthlyHeader,
+        ...data.monthlySalesData.map(item => [
+          item.name,
+          item.sales,
+          formatToRupees(item.sales)
+        ])
+      ];
+      
+      // Add monthly total row
+      const monthlyTotal = data.monthlySalesData.reduce((sum, item) => sum + item.sales, 0);
+      monthlySalesData.push(
+        [],
+        ["Total", monthlyTotal, formatToRupees(monthlyTotal)]
+      );
+      
+      const mSheet = XLSX.utils.aoa_to_sheet(monthlySalesData);
+      XLSX.utils.book_append_sheet(wb, mSheet, "Monthly Sales");
+      
+      // Enhanced Top products worksheet with detailed metrics
+      const productsHeader = [
+        ...headerData,
+        ["Top Products by Sales"],
+        [],
+        ["Product Name", "Sales Value", "Formatted Value", "% of Total Sales"]
+      ];
+      
+      const totalProductSales = data.topProducts.reduce((sum, item) => sum + item.value, 0);
+      
+      const topProductsData = [
+        ...productsHeader,
+        ...data.topProducts.map(item => [
+          item.name,
+          item.value,
+          formatToRupees(item.value),
+          `${((item.value / totalProductSales) * 100).toFixed(2)}%`
+        ])
+      ];
+      
+      // Add total row
+      topProductsData.push(
+        [],
+        ["Total", totalProductSales, formatToRupees(totalProductSales), "100%"]
+      );
+      
+      const pSheet = XLSX.utils.aoa_to_sheet(topProductsData);
+      XLSX.utils.book_append_sheet(wb, pSheet, "Top Products");
+      
+      // Enhanced Transactions worksheet with more detailed information
+      const transactionsHeader = [
+        ...headerData,
+        ["Recent Transactions"],
+        [],
+        ["Transaction ID", "Date", "Customer", "Number of Items", "Total Value", "Formatted Total"]
+      ];
+      
+      const transactionsData = [
+        ...transactionsHeader,
+        ...data.recentTransactions.map(item => [
+          item.id,
+          item.date,
+          item.customer,
+          item.items,
+          item.total,
+          formatToRupees(item.total)
+        ])
+      ];
+      
+      // Add transactions summary
+      const transTotal = data.recentTransactions.reduce((sum, item) => sum + item.total, 0);
+      transactionsData.push(
+        [],
+        ["Transactions Total", "", "", "", transTotal, formatToRupees(transTotal)]
+      );
+      
+      const tSheet = XLSX.utils.aoa_to_sheet(transactionsData);
+      XLSX.utils.book_append_sheet(wb, tSheet, "Transactions");
+      
+      // Apply some cell formatting - column widths
+      const setColumnWidths = (ws: XLSX.WorkSheet) => {
+        const cols = [
+          { wch: 20 }, // Column A width
+          { wch: 20 }, // Column B width
+          { wch: 25 }, // Column C width
+          { wch: 15 }, // Column D width
+          { wch: 15 }, // Column E width
+          { wch: 20 }, // Column F width
+        ];
+        ws['!cols'] = cols;
+      };
+      
+      setColumnWidths(sSheet);
+      setColumnWidths(mSheet);
+      setColumnWidths(pSheet);
+      setColumnWidths(tSheet);
+      
+      // Generate the Excel file with a descriptive filename
+      const fileName = `sales-report-${timeRange}-${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      
+      console.log(`Successfully exported report to ${fileName}`);
       return true;
     } catch (err) {
       console.error("Error generating Excel:", err);
       return false;
     }
   };
+  
+  // Export specific product data with more detailed information
+  const exportProductData = () => {
+    try {
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Create header with report information
+      const headerData = [
+        [`Product Sales Report - ${timeRange.charAt(0).toUpperCase() + timeRange.slice(1)}`],
+        [`Generated on ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`],
+        [],
+      ];
+      
+      // Product data with enhanced details
+      const productsHeader = [
+        ...headerData,
+        ["Product Performance Analysis"],
+        [],
+        [
+          "Product Name", 
+          "Sales Value", 
+          "Formatted Value", 
+          "% of Total Sales", 
+          "Estimated Profit", 
+          "Profit Margin"
+        ]
+      ];
+      
+      const totalProductSales = data.topProducts.reduce((sum, item) => sum + item.value, 0);
+      
+      const productDetails = [
+        ...productsHeader,
+        ...data.topProducts.map(item => {
+          const salesValue = item.value;
+          const percentOfTotal = (salesValue / totalProductSales) * 100;
+          const estimatedProfit = salesValue * (data.summary.profitMargin / 100);
+          
+          return [
+            item.name,
+            salesValue,
+            formatToRupees(salesValue),
+            `${percentOfTotal.toFixed(2)}%`,
+            formatToRupees(estimatedProfit),
+            `${data.summary.profitMargin.toFixed(1)}%`
+          ];
+        })
+      ];
+      
+      // Add summary row
+      productDetails.push(
+        [],
+        [
+          "Total", 
+          totalProductSales, 
+          formatToRupees(totalProductSales), 
+          "100%",
+          formatToRupees(totalProductSales * (data.summary.profitMargin / 100)),
+          `${data.summary.profitMargin.toFixed(1)}%`
+        ]
+      );
+      
+      const sheet = XLSX.utils.aoa_to_sheet(productDetails);
+      
+      // Set column widths for better readability
+      sheet['!cols'] = [
+        { wch: 25 }, // Product name
+        { wch: 15 }, // Sales value
+        { wch: 20 }, // Formatted value
+        { wch: 15 }, // % of total
+        { wch: 18 }, // Estimated profit
+        { wch: 15 }, // Profit margin
+      ];
+      
+      XLSX.utils.book_append_sheet(wb, sheet, "Product Analysis");
+      
+      // Generate file with specific name for product report
+      const fileName = `product-sales-${timeRange}-${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      
+      console.log(`Successfully exported product report to ${fileName}`);
+      return true;
+    } catch (err) {
+      console.error("Error generating product report:", err);
+      return false;
+    }
+  };
+  
+  // Export transactions with enhanced details
+  const exportTransactionData = () => {
+    try {
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Create header with report information
+      const headerData = [
+        [`Transactions Report - ${timeRange.charAt(0).toUpperCase() + timeRange.slice(1)}`],
+        [`Generated on ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`],
+        [],
+      ];
+      
+      // More detailed transaction data export
+      const transactionsHeader = [
+        ...headerData,
+        ["Detailed Transaction Analysis"],
+        [],
+        [
+          "Transaction ID", 
+          "Date", 
+          "Customer", 
+          "Items Count", 
+          "Amount", 
+          "Formatted Amount",
+          "% of Total Sales"
+        ]
+      ];
+      
+      const totalTransactions = data.recentTransactions.reduce((sum, item) => sum + item.total, 0);
+      
+      const transactionsDetails = [
+        ...transactionsHeader,
+        ...data.recentTransactions.map(item => {
+          const percentOfTotal = (item.total / totalTransactions) * 100;
+          
+          return [
+            item.id,
+            item.date,
+            item.customer,
+            item.items,
+            item.total,
+            formatToRupees(item.total),
+            `${percentOfTotal.toFixed(2)}%`
+          ];
+        })
+      ];
+      
+      // Add summary row
+      transactionsDetails.push(
+        [],
+        [
+          "Total", 
+          `${data.recentTransactions.length} transactions`, 
+          "", 
+          data.recentTransactions.reduce((sum, item) => sum + item.items, 0),
+          totalTransactions,
+          formatToRupees(totalTransactions),
+          "100%"
+        ]
+      );
+      
+      const sheet = XLSX.utils.aoa_to_sheet(transactionsDetails);
+      
+      // Set column widths for better readability
+      sheet['!cols'] = [
+        { wch: 20 }, // Transaction ID
+        { wch: 15 }, // Date
+        { wch: 25 }, // Customer
+        { wch: 12 }, // Items count
+        { wch: 15 }, // Amount
+        { wch: 20 }, // Formatted amount
+        { wch: 15 }, // % of total
+      ];
+      
+      XLSX.utils.book_append_sheet(wb, sheet, "Transactions");
+      
+      // Generate file with specific name for transactions report
+      const fileName = `transactions-${timeRange}-${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      
+      console.log(`Successfully exported transactions report to ${fileName}`);
+      return true;
+    } catch (err) {
+      console.error("Error generating transactions report:", err);
+      return false;
+    }
+  };
 
-  return { data, isLoading, error, exportToPDF, exportToExcel };
+  return { 
+    data, 
+    isLoading, 
+    error, 
+    exportToPDF, 
+    exportToExcel,
+    exportProductData,
+    exportTransactionData 
+  };
 };

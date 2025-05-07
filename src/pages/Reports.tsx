@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import {
@@ -51,7 +50,9 @@ const Reports = () => {
     isLoading, 
     error, 
     exportToPDF, 
-    exportToExcel 
+    exportToExcel,
+    exportProductData,
+    exportTransactionData
   } = useSalesReportData(timeRange);
 
   // Handle PDF export
@@ -79,13 +80,49 @@ const Reports = () => {
     if (success) {
       toast({
         title: "Report Downloaded",
-        description: "Sales report has been downloaded as Excel/CSV",
+        description: "Sales report has been downloaded as Excel file",
       });
     } else {
       toast({
         variant: "destructive",
         title: "Export Failed",
         description: "There was an error generating the Excel report",
+      });
+    }
+  };
+  
+  // Handle product data export
+  const handleExportProductData = () => {
+    const success = exportProductData();
+    
+    if (success) {
+      toast({
+        title: "Product Data Downloaded",
+        description: "Product sales data has been downloaded as Excel file",
+      });
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: "There was an error generating the product data report",
+      });
+    }
+  };
+  
+  // Handle transaction data export
+  const handleExportTransactionData = () => {
+    const success = exportTransactionData();
+    
+    if (success) {
+      toast({
+        title: "Transactions Downloaded",
+        description: "Transaction data has been downloaded as Excel file",
+      });
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: "There was an error generating the transactions report",
       });
     }
   };
@@ -373,7 +410,12 @@ const Reports = () => {
                 </ResponsiveContainer>
               </CardContent>
               <CardFooter className="bg-gray-50/50 flex justify-end">
-                <Button variant="outline" size="sm" className="flex items-center gap-1" onClick={handleExportExcel}>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex items-center gap-1" 
+                  onClick={handleExportProductData}
+                >
                   <Download size={16} />
                   <span>Export Product Data</span>
                 </Button>
@@ -418,7 +460,12 @@ const Reports = () => {
                 </Table>
               </CardContent>
               <CardFooter className="bg-gray-50/50 flex justify-end">
-                <Button variant="outline" size="sm" className="flex items-center gap-1" onClick={handleExportExcel}>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex items-center gap-1" 
+                  onClick={handleExportTransactionData}
+                >
                   <Download size={16} />
                   <span>Export Transactions</span>
                 </Button>
