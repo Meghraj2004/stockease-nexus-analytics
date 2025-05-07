@@ -115,14 +115,14 @@ const Reports = () => {
     }
   };
   
-  // Handle transaction data export
+  // Handle transaction data export - Updated to clarify it exports ALL transactions
   const handleExportTransactionData = () => {
     const success = exportTransactionData();
     
     if (success) {
       toast({
-        title: "Transactions Downloaded",
-        description: "Transaction data has been downloaded as Excel file",
+        title: "All Transactions Downloaded",
+        description: "Complete transaction data has been downloaded as Excel file",
       });
     } else {
       toast({
@@ -503,7 +503,7 @@ const Reports = () => {
                   onClick={handleExportTransactionData}
                 >
                   <Download size={16} />
-                  <span>Export Transactions</span>
+                  <span>Export All Transactions</span>
                 </Button>
               </CardFooter>
             </Card>

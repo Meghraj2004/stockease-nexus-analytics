@@ -1,3 +1,4 @@
+
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy, limit, where, Timestamp, getDocs, doc, updateDoc } from "firebase/firestore";
 import { useState, useEffect } from "react";
@@ -634,7 +635,7 @@ export const useSalesReportData = (timeRange: string) => {
     }
   };
   
-  // Export transactions with enhanced details
+  // Export transactions with enhanced details - FIXED to use allTransactions instead of recentTransactions
   const exportTransactionData = () => {
     try {
       // Create workbook
@@ -647,7 +648,7 @@ export const useSalesReportData = (timeRange: string) => {
         [],
       ];
       
-      // More detailed transaction data export
+      // More detailed transaction data export - Using allTransactions instead of recentTransactions
       const transactionsHeader = [
         ...headerData,
         ["Detailed Transaction Analysis"],
@@ -663,11 +664,12 @@ export const useSalesReportData = (timeRange: string) => {
         ]
       ];
       
-      const totalTransactions = data.recentTransactions.reduce((sum, item) => sum + item.total, 0);
+      // Use allTransactions instead of recentTransactions
+      const totalTransactions = data.allTransactions.reduce((sum, item) => sum + item.total, 0);
       
       const transactionsDetails = [
         ...transactionsHeader,
-        ...data.recentTransactions.map(item => {
+        ...data.allTransactions.map(item => {
           const percentOfTotal = (item.total / totalTransactions) * 100;
           
           return [
@@ -682,14 +684,14 @@ export const useSalesReportData = (timeRange: string) => {
         })
       ];
       
-      // Add summary row
+      // Add summary row using allTransactions for calculations
       transactionsDetails.push(
         [],
         [
           "Total", 
-          `${data.recentTransactions.length} transactions`, 
+          `${data.allTransactions.length} transactions`, 
           "", 
-          data.recentTransactions.reduce((sum, item) => sum + item.items, 0),
+          data.allTransactions.reduce((sum, item) => sum + item.items, 0),
           totalTransactions,
           formatToRupees(totalTransactions),
           "100%"
@@ -709,13 +711,13 @@ export const useSalesReportData = (timeRange: string) => {
         { wch: 15 }, // % of total
       ];
       
-      XLSX.utils.book_append_sheet(wb, sheet, "Transactions");
+      XLSX.utils.book_append_sheet(wb, sheet, "All Transactions");
       
       // Generate file with specific name for transactions report
-      const fileName = `transactions-${timeRange}-${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = `all-transactions-${timeRange}-${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
       
-      console.log(`Successfully exported transactions report to ${fileName}`);
+      console.log(`Successfully exported all transactions report to ${fileName}`);
       return true;
     } catch (err) {
       console.error("Error generating transactions report:", err);
