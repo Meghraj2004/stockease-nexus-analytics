@@ -1,5 +1,6 @@
+
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, query, orderBy, limit, where, Timestamp, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, limit, where, Timestamp, getDocs, doc, updateDoc } from "firebase/firestore";
 import { useState, useEffect } from "react";
 import { formatToRupees } from "@/types/inventory";
 import jsPDF from "jspdf";
@@ -19,6 +20,7 @@ export interface SalesReport {
   monthlySalesData: Array<{name: string, sales: number}>;
   topProducts: Array<{name: string, value: number}>;
   recentTransactions: Transaction[];
+  allTransactions: Transaction[];
   summary: {
     totalSales: number;
     transactions: number;
@@ -33,6 +35,7 @@ export const useSalesReportData = (timeRange: string) => {
     monthlySalesData: [],
     topProducts: [],
     recentTransactions: [],
+    allTransactions: [],
     summary: {
       totalSales: 0,
       transactions: 0,
@@ -118,7 +121,8 @@ export const useSalesReportData = (timeRange: string) => {
     const productSales: Record<string, number> = {};
     
     // Process transactions
-    const transactions: Transaction[] = [];
+    const recentTransactions: Transaction[] = [];
+    const allTransactions: Transaction[] = [];
     
     let totalSales = 0;
     const transactionCount = docs.length;
@@ -152,16 +156,22 @@ export const useSalesReportData = (timeRange: string) => {
         });
       }
       
+      // Create transaction object for both recent and all transactions
+      const transaction = {
+        id: doc.id,
+        date: date ? date.toISOString().split('T')[0] : '',
+        customer: sale.customer || 'Guest',
+        items: sale.items?.length || 0,
+        total: sale.total || 0,
+      };
+      
       // For recent transactions (only first 5)
       if (index < 5) {
-        transactions.push({
-          id: doc.id,
-          date: date ? date.toISOString().split('T')[0] : '',
-          customer: sale.customer || 'Guest',
-          items: sale.items?.length || 0,
-          total: sale.total || 0,
-        });
+        recentTransactions.push(transaction);
       }
+      
+      // For all transactions
+      allTransactions.push(transaction);
     });
     
     // Format monthly sales for chart
@@ -183,7 +193,8 @@ export const useSalesReportData = (timeRange: string) => {
     return {
       monthlySalesData,
       topProducts,
-      recentTransactions: transactions,
+      recentTransactions,
+      allTransactions,
       summary: {
         totalSales,
         transactions: transactionCount,
@@ -220,6 +231,15 @@ export const useSalesReportData = (timeRange: string) => {
       total: Math.floor(Math.random() * 5000) + 1000
     }));
     
+    // Sample all transactions (more data)
+    const sampleAllTransactions = Array.from({ length: 20 }, (_, i) => ({
+      id: `INV${10001 + i}`,
+      date: new Date(Date.now() - i * 86400000).toISOString().split('T')[0],
+      customer: `Customer ${Math.floor(i/2) + 1}`,
+      items: Math.floor(Math.random() * 5) + 1,
+      total: Math.floor(Math.random() * 5000) + 1000
+    }));
+    
     // Calculate summary
     const totalSales = monthlySalesData.reduce((sum, item) => sum + item.sales, 0);
     
@@ -227,6 +247,7 @@ export const useSalesReportData = (timeRange: string) => {
       monthlySalesData,
       topProducts: sampleProducts,
       recentTransactions: sampleTransactions,
+      allTransactions: sampleAllTransactions,
       summary: {
         totalSales,
         transactions: 145,
@@ -234,6 +255,65 @@ export const useSalesReportData = (timeRange: string) => {
         profitMargin: 38.5
       }
     });
+  };
+
+  // Update a transaction
+  const updateTransaction = (transaction: Transaction) => {
+    try {
+      // For demo/sample data, just update the local state
+      if (!db || data.allTransactions.some(t => t.id.startsWith('INV'))) {
+        // We're using sample data, so just update in memory
+        setData(prevData => {
+          const updatedRecentTransactions = prevData.recentTransactions.map(t => 
+            t.id === transaction.id ? transaction : t
+          );
+          
+          const updatedAllTransactions = prevData.allTransactions.map(t => 
+            t.id === transaction.id ? transaction : t
+          );
+          
+          return {
+            ...prevData,
+            recentTransactions: updatedRecentTransactions,
+            allTransactions: updatedAllTransactions
+          };
+        });
+        
+        console.log("Transaction updated in memory:", transaction);
+        return true;
+      }
+      
+      // For real data, update in Firebase
+      const transactionRef = doc(db, "sales", transaction.id);
+      
+      // Prepare the update data
+      // Note: We only update fields that are editable from the UI
+      const updateData = {
+        customer: transaction.customer,
+        total: transaction.total,
+        // If we had more fields in the form, we would update them here
+      };
+      
+      // Update the document in Firebase
+      // Note: This is async, but we don't wait for it here
+      updateDoc(transactionRef, updateData)
+        .then(() => {
+          console.log("Transaction successfully updated in Firebase:", transaction.id);
+        })
+        .catch((error) => {
+          console.error("Error updating transaction:", error);
+          toast({
+            variant: "destructive",
+            title: "Update Failed",
+            description: "There was an error updating the transaction in the database"
+          });
+        });
+      
+      return true;
+    } catch (err) {
+      console.error("Error updating transaction:", err);
+      return false;
+    }
   };
 
   // Enhanced Export functions for reports
@@ -650,6 +730,7 @@ export const useSalesReportData = (timeRange: string) => {
     exportToPDF, 
     exportToExcel,
     exportProductData,
-    exportTransactionData 
+    exportTransactionData,
+    updateTransaction
   };
 };

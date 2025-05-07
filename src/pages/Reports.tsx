@@ -34,15 +34,20 @@ import {
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Printer, RefreshCcw } from "lucide-react";
+import { Download, FileText, Printer, RefreshCcw, Edit, ClipboardList } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { formatToRupees } from "@/types/inventory";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 // Import our custom hook for sales report data
 import { useSalesReportData } from "@/services/reportsService";
 
 const Reports = () => {
   const [timeRange, setTimeRange] = useState("month");
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [currentTransaction, setCurrentTransaction] = useState(null);
   
   // Use our custom hook to get real-time data
   const { 
@@ -52,7 +57,8 @@ const Reports = () => {
     exportToPDF, 
     exportToExcel,
     exportProductData,
-    exportTransactionData
+    exportTransactionData,
+    updateTransaction
   } = useSalesReportData(timeRange);
 
   // Handle PDF export
@@ -134,6 +140,32 @@ const Reports = () => {
       title: "Print Initiated",
       description: "Sales report print dialog opened",
     });
+  };
+
+  // Handle edit transaction
+  const handleEditTransaction = (transaction) => {
+    setCurrentTransaction(transaction);
+    setIsEditDialogOpen(true);
+  };
+
+  // Handle save transaction
+  const handleSaveTransaction = () => {
+    if (!currentTransaction) return;
+    
+    const success = updateTransaction(currentTransaction);
+    if (success) {
+      toast({
+        title: "Transaction Updated",
+        description: "The transaction has been successfully updated",
+      });
+      setIsEditDialogOpen(false);
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "There was an error updating the transaction",
+      });
+    }
   };
 
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
@@ -245,8 +277,10 @@ const Reports = () => {
             <TabsTrigger value="overview" className="rounded-md">Overview</TabsTrigger>
             <TabsTrigger value="products" className="rounded-md">Products</TabsTrigger>
             <TabsTrigger value="transactions" className="rounded-md">Transactions</TabsTrigger>
+            <TabsTrigger value="all-transactions" className="rounded-md">All Transactions</TabsTrigger>
           </TabsList>
 
+          {/* Overview Tab Content */}
           <TabsContent value="overview" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <Card className="overflow-hidden border-none shadow-md bg-gradient-to-br from-white to-blue-50">
@@ -376,6 +410,7 @@ const Reports = () => {
             </div>
           </TabsContent>
 
+          {/* Products Tab Content */}
           <TabsContent value="products" className="space-y-4">
             <Card className="border-none shadow-md overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-indigo-50 to-indigo-100/50">
@@ -423,6 +458,7 @@ const Reports = () => {
             </Card>
           </TabsContent>
 
+          {/* Transactions Tab Content */}
           <TabsContent value="transactions" className="space-y-4">
             <Card className="border-none shadow-md overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-cyan-50 to-cyan-100/50">
@@ -472,8 +508,173 @@ const Reports = () => {
               </CardFooter>
             </Card>
           </TabsContent>
+
+          {/* All Transactions Tab Content */}
+          <TabsContent value="all-transactions" className="space-y-4">
+            <Card className="border-none shadow-md overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-amber-50 to-amber-100/50">
+                <CardTitle>All Transactions</CardTitle>
+                <CardDescription>
+                  Complete list of all sales transactions with edit functionality
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="px-0">
+                <div className="overflow-auto max-h-[600px]">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-white dark:bg-gray-900">
+                      <TableRow>
+                        <TableHead>Transaction ID</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Items</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead className="text-center">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {reportData.allTransactions && reportData.allTransactions.map((transaction) => (
+                        <TableRow key={transaction.id}>
+                          <TableCell className="font-medium">
+                            #{transaction.id}
+                          </TableCell>
+                          <TableCell>{transaction.date}</TableCell>
+                          <TableCell>{transaction.customer}</TableCell>
+                          <TableCell>{transaction.items}</TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatToRupees(transaction.total)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => handleEditTransaction(transaction)}
+                            >
+                              <Edit size={16} className="text-blue-600" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {(!reportData.allTransactions || reportData.allTransactions.length === 0) && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-8">
+                            <ClipboardList size={40} className="mx-auto text-gray-300 mb-2" />
+                            <p className="text-muted-foreground">No transaction records found for the selected time period</p>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+              <CardFooter className="bg-gray-50/50 flex justify-between">
+                <div className="text-sm text-muted-foreground">
+                  {reportData.allTransactions?.length || 0} transactions found
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex items-center gap-1" 
+                  onClick={handleExportTransactionData}
+                >
+                  <Download size={16} />
+                  <span>Export All Transactions</span>
+                </Button>
+              </CardFooter>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit Transaction Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Transaction</DialogTitle>
+          </DialogHeader>
+          {currentTransaction && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="transaction-id" className="text-right">
+                  ID
+                </Label>
+                <Input
+                  id="transaction-id"
+                  value={currentTransaction.id}
+                  className="col-span-3"
+                  readOnly
+                  disabled
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="transaction-date" className="text-right">
+                  Date
+                </Label>
+                <Input
+                  id="transaction-date"
+                  value={currentTransaction.date}
+                  className="col-span-3"
+                  onChange={(e) => setCurrentTransaction({
+                    ...currentTransaction,
+                    date: e.target.value
+                  })}
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="transaction-customer" className="text-right">
+                  Customer
+                </Label>
+                <Input
+                  id="transaction-customer"
+                  value={currentTransaction.customer}
+                  className="col-span-3"
+                  onChange={(e) => setCurrentTransaction({
+                    ...currentTransaction,
+                    customer: e.target.value
+                  })}
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="transaction-items" className="text-right">
+                  Items
+                </Label>
+                <Input
+                  id="transaction-items"
+                  type="number"
+                  value={currentTransaction.items}
+                  className="col-span-3"
+                  onChange={(e) => setCurrentTransaction({
+                    ...currentTransaction,
+                    items: parseInt(e.target.value) || 0
+                  })}
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="transaction-total" className="text-right">
+                  Total
+                </Label>
+                <Input
+                  id="transaction-total"
+                  type="number"
+                  value={currentTransaction.total}
+                  className="col-span-3"
+                  onChange={(e) => setCurrentTransaction({
+                    ...currentTransaction,
+                    total: parseFloat(e.target.value) || 0
+                  })}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveTransaction}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };
