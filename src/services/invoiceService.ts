@@ -1,4 +1,3 @@
-
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { formatToRupees } from "@/types/inventory";

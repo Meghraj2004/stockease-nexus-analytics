@@ -7,11 +7,7 @@ import "./styles/darkMode.css";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 
-// Fix for autoTable not being recognized
-declare module "jspdf" {
-  interface jsPDF {
-    autoTable: (options: any) => any;
-  }
-}
+// Remove the conflicting declaration since it's already defined in invoiceService.ts
+// This was causing the TypeScript error
 
 createRoot(document.getElementById("root")!).render(<App />);
