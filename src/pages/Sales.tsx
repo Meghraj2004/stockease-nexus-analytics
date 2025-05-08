@@ -616,84 +616,84 @@ const Sales = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [currentTransaction, setCurrentTransaction] = useState(null);
 
-    // Handle edit transaction
-    const handleEditTransaction = (transaction) => {
-      setCurrentTransaction(transaction);
-      setIsEditDialogOpen(true);
-    };
-  
-    // Handle save transaction
-    const handleSaveTransaction = () => {
-      if (!currentTransaction) return;
-      
-      // Convert items to the correct format
-      const updatedItems = currentTransaction.items.map(item => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        total: item.price * item.quantity
-      }));
-  
-      const updatedTransaction = {
-        ...currentTransaction,
-        items: updatedItems,
-      };
-  
-      const success = updateTransaction(updatedTransaction);
-      if (success) {
-        toast({
-          title: "Transaction Updated",
-          description: "The transaction has been successfully updated",
-        });
-        setIsEditDialogOpen(false);
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Update Failed",
-          description: "There was an error updating the transaction",
-        });
-      }
+  // Handle edit transaction
+  const handleEditTransaction = (transaction) => {
+    setCurrentTransaction(transaction);
+    setIsEditDialogOpen(true);
+  };
+
+  // Handle save transaction
+  const handleSaveTransaction = () => {
+    if (!currentTransaction) return;
+    
+    // Convert items to the correct format
+    const updatedItems = currentTransaction.items.map(item => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      total: item.price * item.quantity
+    }));
+
+    const updatedTransaction = {
+      ...currentTransaction,
+      items: updatedItems,
     };
 
-    const updateTransaction = async (transaction) => {
-      try {
-        const transactionRef = doc(db, "sales", transaction.id);
-        
-        // Prepare the data to be updated
-        const updatedData = {
-          customerName: transaction.customerName,
-          customerPhone: transaction.customerPhone,
-          customerEmail: transaction.customerEmail,
-          items: transaction.items,
-          subtotal: transaction.subtotal,
-          discount: transaction.discount,
-          discountAmount: transaction.discountAmount,
-          vatRate: transaction.vatRate,
-          vatAmount: transaction.vatAmount,
-          total: transaction.total,
-          updatedAt: serverTimestamp(),
-        };
-    
-        // Update the document
-        await updateDoc(transactionRef, updatedData);
-    
-        toast({
-          title: "Transaction Updated",
-          description: "The transaction has been successfully updated.",
-        });
-    
-        return true;
-      } catch (error) {
-        console.error("Error updating transaction:", error);
-        toast({
-          title: "Error",
-          description: "Failed to update the transaction. Please try again.",
-          variant: "destructive",
-        });
-        return false;
-      }
-    };
+    const success = updateTransaction(updatedTransaction);
+    if (success) {
+      toast({
+        title: "Transaction Updated",
+        description: "The transaction has been successfully updated",
+      });
+      setIsEditDialogOpen(false);
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "There was an error updating the transaction",
+      });
+    }
+  };
+
+  const updateTransaction = async (transaction) => {
+    try {
+      const transactionRef = doc(db, "sales", transaction.id);
+      
+      // Prepare the data to be updated
+      const updatedData = {
+        customerName: transaction.customerName,
+        customerPhone: transaction.customerPhone,
+        customerEmail: transaction.customerEmail,
+        items: transaction.items,
+        subtotal: transaction.subtotal,
+        discount: transaction.discount,
+        discountAmount: transaction.discountAmount,
+        vatRate: transaction.vatRate,
+        vatAmount: transaction.vatAmount,
+        total: transaction.total,
+        updatedAt: serverTimestamp(),
+      };
+  
+      // Update the document
+      await updateDoc(transactionRef, updatedData);
+  
+      toast({
+        title: "Transaction Updated",
+        description: "The transaction has been successfully updated.",
+      });
+  
+      return true;
+    } catch (error) {
+      console.error("Error updating transaction:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update the transaction. Please try again.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -709,262 +709,116 @@ const Sales = () => {
           </p>
         </div>
 
-        <Tabs defaultValue="new-sale" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="new-sale">New Sale</TabsTrigger>
-            <TabsTrigger value="all-transactions">All Transactions</TabsTrigger>
-          </TabsList>
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Cart Items</CardTitle>
+                <CardDescription>
+                  {isEditMode ? "Edit items in this transaction" : "Add items to the current sale"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex space-x-2">
+                  <div className="flex-1">
+                    <Select
+                      value={selectedItem}
+                      onValueChange={setSelectedItem}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an item" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {inventoryItems.map((item) => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {item.name} - {formatToRupees(item.price)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Input
+                    placeholder="Qty"
+                    type="number"
+                    value={newItemQuantity}
+                    onChange={(e) => setNewItemQuantity(e.target.value)}
+                    className="w-20"
+                  />
+                  <Button onClick={addItem} size="icon">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
 
-          <TabsContent value="new-sale">
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Cart Items</CardTitle>
-                    <CardDescription>
-                      {isEditMode ? "Edit items in this transaction" : "Add items to the current sale"}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex space-x-2">
-                      <div className="flex-1">
-                        <Select
-                          value={selectedItem}
-                          onValueChange={setSelectedItem}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select an item" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {inventoryItems.map((item) => (
-                              <SelectItem key={item.id} value={item.id}>
-                                {item.name} - {formatToRupees(item.price)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Input
-                        placeholder="Qty"
-                        type="number"
-                        value={newItemQuantity}
-                        onChange={(e) => setNewItemQuantity(e.target.value)}
-                        className="w-20"
-                      />
-                      <Button onClick={addItem} size="icon">
-                        <Plus className="h-4 w-4" />
-                      </Button>
+                <div className="border rounded-md">
+                  {items.length === 0 ? (
+                    <div className="p-4 text-center text-muted-foreground">
+                      No items added yet
                     </div>
-
-                    <div className="border rounded-md">
-                      {items.length === 0 ? (
-                        <div className="p-4 text-center text-muted-foreground">
-                          No items added yet
-                        </div>
-                      ) : (
-                        <div className="divide-y">
-                          {items.map((item) => (
-                            <div
-                              key={item.id}
-                              className="p-3 flex justify-between items-center"
-                            >
-                              <div>
-                                <p className="font-medium">{item.name}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {formatToRupees(item.price)} each
-                                </p>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <div className="flex items-center border rounded-md">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() =>
-                                      updateQuantity(
-                                        item.id,
-                                        Math.max(1, item.quantity - 1)
-                                      )
-                                    }
-                                  >
-                                    -
-                                  </Button>
-                                  <span className="w-8 text-center">
-                                    {item.quantity}
-                                  </span>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() =>
-                                      updateQuantity(item.id, item.quantity + 1)
-                                    }
-                                  >
-                                    +
-                                  </Button>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive"
-                                  onClick={() => removeItem(item.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
+                  ) : (
+                    <div className="divide-y">
+                      {items.map((item) => (
+                        <div
+                          key={item.id}
+                          className="p-3 flex justify-between items-center"
+                        >
+                          <div>
+                            <p className="font-medium">{item.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {formatToRupees(item.price)} each
+                            </p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <div className="flex items-center border rounded-md">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() =>
+                                  updateQuantity(
+                                    item.id,
+                                    Math.max(1, item.quantity - 1)
+                                  )
+                                }
+                              >
+                                -
+                              </Button>
+                              <span className="w-8 text-center">
+                                {item.quantity}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() =>
+                                  updateQuantity(item.id, item.quantity + 1)
+                                }
+                              >
+                                +
+                              </Button>
                             </div>
-                          ))}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => removeItem(item.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
-                      )}
+                      ))}
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{isEditMode ? "Edit Transaction Details" : "Sale Details"}</CardTitle>
-                    <CardDescription>
-                      Customer information and payment
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="customer">Customer Name</Label>
-                      <Input
-                        id="customer"
-                        placeholder="Walk-in Customer"
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone Number</Label>
-                      <Input
-                        id="phone"
-                        placeholder="Customer Phone Number"
-                        value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">For WhatsApp invoice delivery</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email Address</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="Customer Email"
-                        value={customerEmail}
-                        onChange={(e) => setCustomerEmail(e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">For email invoice delivery</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="discount">Discount (%)</Label>
-                      <Input
-                        id="discount"
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={discount}
-                        onChange={(e) => setDiscount(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="vat">GST Rate (%)</Label>
-                      <Input
-                        id="vat"
-                        type="number"
-                        min="0"
-                        value={vatRate}
-                        onChange={(e) => setVatRate(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="border-t pt-4 space-y-2">
-                      <div className="flex justify-between">
-                        <span>Subtotal:</span>
-                        <span>{formatToRupees(subtotal)}</span>
-                      </div>
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>Discount ({discount}%):</span>
-                        <span>-{formatToRupees(discountAmount)}</span>
-                      </div>
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>GST ({vatRate}%):</span>
-                        <span>{formatToRupees(vatAmount)}</span>
-                      </div>
-                      <div className="flex justify-between font-bold text-lg">
-                        <span>Total:</span>
-                        <span>{formatToRupees(total)}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                  <CardFooter className={isEditMode ? "flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4 sm:justify-between" : ""}>
-                    {isEditMode ? (
-                      <>
-                        <Button 
-                          variant="outline" 
-                          onClick={cancelEdit}
-                          disabled={isProcessing}
-                          className="w-full sm:w-auto"
-                        >
-                          Cancel
-                        </Button>
-                        <Button 
-                          className="w-full sm:w-auto" 
-                          onClick={saveEditedTransaction}
-                          disabled={isProcessing}
-                        >
-                          {isProcessing ? (
-                            <span className="flex items-center">
-                              <div className="animate-spin mr-2 h-4 w-4 border-2 border-b-transparent border-white rounded-full"></div>
-                              Saving...
-                            </span>
-                          ) : (
-                            <span className="flex items-center">
-                              Save Changes
-                            </span>
-                          )}
-                        </Button>
-                      </>
-                    ) : (
-                      <Button 
-                        className="w-full" 
-                        size="lg" 
-                        onClick={processSale}
-                        disabled={items.length === 0 || isProcessing}
-                      >
-                        {isProcessing ? (
-                          <span className="flex items-center">
-                            <div className="animate-spin mr-2 h-4 w-4 border-2 border-b-transparent border-white rounded-full"></div>
-                            Processing...
-                          </span>
-                        ) : (
-                          <span className="flex items-center">
-                            <ShoppingCart className="mr-2 h-5 w-5" />
-                            Complete Sale & Send Invoice
-                          </span>
-                        )}
-                      </Button>
-                    )}
-                  </CardFooter>
-                </Card>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="all-transactions">
+            {/* All Transactions section below cart */}
             <Card className="border-none shadow-md overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-amber-50 to-amber-100/50">
                 <CardTitle>All Transactions</CardTitle>
                 <CardDescription>
-                  Complete list of all sales transactions with edit functionality
+                  Complete list of all sales transactions
                 </CardDescription>
                 <div className="mt-4 relative">
                   <div className="relative">
@@ -980,7 +834,7 @@ const Sales = () => {
                 </div>
               </CardHeader>
               <CardContent className="px-0">
-                <div className="overflow-auto max-h-[600px]">
+                <div className="overflow-auto max-h-[400px]">
                   <Table>
                     <TableHeader className="sticky top-0 bg-white dark:bg-gray-900">
                       <TableRow>
@@ -1103,11 +957,90 @@ const Sales = () => {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
-    </DashboardLayout>
-  );
-};
+          </div>
 
-export default Sales;
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>{isEditMode ? "Edit Transaction Details" : "Sale Details"}</CardTitle>
+                <CardDescription>
+                  Customer information and payment
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="customer">Customer Name</Label>
+                  <Input
+                    id="customer"
+                    placeholder="Walk-in Customer"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    placeholder="Customer Phone Number"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">For WhatsApp invoice delivery</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email Address</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Customer Email"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">For email invoice delivery</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="discount">Discount (%)</Label>
+                  <Input
+                    id="discount"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={discount}
+                    onChange={(e) => setDiscount(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="vat">GST Rate (%)</Label>
+                  <Input
+                    id="vat"
+                    type="number"
+                    min="0"
+                    value={vatRate}
+                    onChange={(e) => setVatRate(e.target.value)}
+                  />
+                </div>
+
+                <div className="border-t pt-4 space-y-2">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>{formatToRupees(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Discount ({discount}%):</span>
+                    <span>-{formatToRupees(discountAmount)}</span>
+                  </div>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>GST ({vatRate}%):</span>
+                    <span>{formatToRupees(vatAmount)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-lg">
+                    <span>Total:</span>
+                    <span>{formatToRupees(total)}</span>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter className={isEditMode ? "flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space

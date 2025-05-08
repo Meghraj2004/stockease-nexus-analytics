@@ -160,9 +160,9 @@ export const useSalesReportData = (timeRange: string) => {
       const transaction = {
         id: doc.id,
         date: date ? date.toISOString().split('T')[0] : '',
-        // Make sure customer name is handled properly - default to "Guest" if missing
-        customer: sale.customer && typeof sale.customer === 'string' && sale.customer.trim() !== '' 
-          ? sale.customer 
+        // Use customerName property for consistent naming and handling
+        customer: sale.customerName && typeof sale.customerName === 'string' && sale.customerName.trim() !== '' 
+          ? sale.customerName 
           : 'Guest',
         items: sale.items?.length || 0,
         total: sale.total || 0,
