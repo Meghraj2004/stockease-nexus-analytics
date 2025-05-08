@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ShoppingCart, Plus, Trash2, FileText, Mail, Send, Pencil } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, FileText, Mail, Send, Pencil, Search, ClipboardList, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { 
@@ -59,6 +58,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface SaleItem {
   id: string;
@@ -104,6 +104,7 @@ const Sales = () => {
   const [totalPages, setTotalPages] = useState(1);
   const transactionsPerPage = 10;
   const { toast } = useToast();
+  const [customerSearch, setCustomerSearch] = useState("");
   
   // Edit transaction states
   const [isEditMode, setIsEditMode] = useState(false);
@@ -530,8 +531,13 @@ const Sales = () => {
     }
   };
 
+  // Filter transactions based on customer search
+  const filteredTransactions = allTransactions.filter(transaction => 
+    transaction.customerName.toLowerCase().includes(customerSearch.toLowerCase())
+  );
+
   // Get current page transactions
-  const currentTransactions = allTransactions.slice(
+  const currentTransactions = filteredTransactions.slice(
     (currentPage - 1) * transactionsPerPage,
     currentPage * transactionsPerPage
   );
@@ -564,6 +570,131 @@ const Sales = () => {
     return pageNumbers;
   };
 
+  // Function to export transaction data
+  const handleExportTransactionData = () => {
+    try {
+      // Create workbook and worksheet
+      const XLSX = require('xlsx');
+      const workbook = XLSX.utils.book_new();
+      
+      // Convert transactions to worksheet format
+      const worksheetData = allTransactions.map(transaction => ({
+        'Transaction ID': transaction.id,
+        'Date': transaction.timestamp.toLocaleDateString(),
+        'Customer': transaction.customerName,
+        'Items': transaction.items.length,
+        'Total': transaction.total,
+        'Phone': transaction.customerPhone || 'N/A',
+        'Email': transaction.customerEmail || 'N/A'
+      }));
+      
+      const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+      
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'All Transactions');
+      
+      // Write to file and trigger download
+      XLSX.writeFile(workbook, 'all_transactions.xlsx');
+      
+      toast({
+        title: "All Transactions Downloaded",
+        description: "Transaction data has been downloaded as Excel file",
+      });
+      
+      return true;
+    } catch (error) {
+      console.error("Error exporting transactions:", error);
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: "There was an error generating the transactions report",
+      });
+      return false;
+    }
+  };
+
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [currentTransaction, setCurrentTransaction] = useState(null);
+
+    // Handle edit transaction
+    const handleEditTransaction = (transaction) => {
+      setCurrentTransaction(transaction);
+      setIsEditDialogOpen(true);
+    };
+  
+    // Handle save transaction
+    const handleSaveTransaction = () => {
+      if (!currentTransaction) return;
+      
+      // Convert items to the correct format
+      const updatedItems = currentTransaction.items.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        total: item.price * item.quantity
+      }));
+  
+      const updatedTransaction = {
+        ...currentTransaction,
+        items: updatedItems,
+      };
+  
+      const success = updateTransaction(updatedTransaction);
+      if (success) {
+        toast({
+          title: "Transaction Updated",
+          description: "The transaction has been successfully updated",
+        });
+        setIsEditDialogOpen(false);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Update Failed",
+          description: "There was an error updating the transaction",
+        });
+      }
+    };
+
+    const updateTransaction = async (transaction) => {
+      try {
+        const transactionRef = doc(db, "sales", transaction.id);
+        
+        // Prepare the data to be updated
+        const updatedData = {
+          customerName: transaction.customerName,
+          customerPhone: transaction.customerPhone,
+          customerEmail: transaction.customerEmail,
+          items: transaction.items,
+          subtotal: transaction.subtotal,
+          discount: transaction.discount,
+          discountAmount: transaction.discountAmount,
+          vatRate: transaction.vatRate,
+          vatAmount: transaction.vatAmount,
+          total: transaction.total,
+          updatedAt: serverTimestamp(),
+        };
+    
+        // Update the document
+        await updateDoc(transactionRef, updatedData);
+    
+        toast({
+          title: "Transaction Updated",
+          description: "The transaction has been successfully updated.",
+        });
+    
+        return true;
+      } catch (error) {
+        console.error("Error updating transaction:", error);
+        toast({
+          title: "Error",
+          description: "Failed to update the transaction. Please try again.",
+          variant: "destructive",
+        });
+        return false;
+      }
+    };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -578,146 +709,306 @@ const Sales = () => {
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Cart Items</CardTitle>
-                <CardDescription>
-                  {isEditMode ? "Edit items in this transaction" : "Add items to the current sale"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex space-x-2">
-                  <div className="flex-1">
-                    <Select
-                      value={selectedItem}
-                      onValueChange={setSelectedItem}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select an item" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {inventoryItems.map((item) => (
-                          <SelectItem key={item.id} value={item.id}>
-                            {item.name} - {formatToRupees(item.price)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Input
-                    placeholder="Qty"
-                    type="number"
-                    value={newItemQuantity}
-                    onChange={(e) => setNewItemQuantity(e.target.value)}
-                    className="w-20"
-                  />
-                  <Button onClick={addItem} size="icon">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
+        <Tabs defaultValue="new-sale" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="new-sale">New Sale</TabsTrigger>
+            <TabsTrigger value="all-transactions">All Transactions</TabsTrigger>
+          </TabsList>
 
-                <div className="border rounded-md">
-                  {items.length === 0 ? (
-                    <div className="p-4 text-center text-muted-foreground">
-                      No items added yet
-                    </div>
-                  ) : (
-                    <div className="divide-y">
-                      {items.map((item) => (
-                        <div
-                          key={item.id}
-                          className="p-3 flex justify-between items-center"
+          <TabsContent value="new-sale">
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Cart Items</CardTitle>
+                    <CardDescription>
+                      {isEditMode ? "Edit items in this transaction" : "Add items to the current sale"}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex space-x-2">
+                      <div className="flex-1">
+                        <Select
+                          value={selectedItem}
+                          onValueChange={setSelectedItem}
                         >
-                          <div>
-                            <p className="font-medium">{item.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {formatToRupees(item.price)} each
-                            </p>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <div className="flex items-center border rounded-md">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() =>
-                                  updateQuantity(
-                                    item.id,
-                                    Math.max(1, item.quantity - 1)
-                                  )
-                                }
-                              >
-                                -
-                              </Button>
-                              <span className="w-8 text-center">
-                                {item.quantity}
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() =>
-                                  updateQuantity(item.id, item.quantity + 1)
-                                }
-                              >
-                                +
-                              </Button>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive"
-                              onClick={() => removeItem(item.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select an item" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {inventoryItems.map((item) => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {item.name} - {formatToRupees(item.price)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Input
+                        placeholder="Qty"
+                        type="number"
+                        value={newItemQuantity}
+                        onChange={(e) => setNewItemQuantity(e.target.value)}
+                        className="w-20"
+                      />
+                      <Button onClick={addItem} size="icon">
+                        <Plus className="h-4 w-4" />
+                      </Button>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-            
-            {/* All Transactions */}
-            <Card>
-              <CardHeader>
+
+                    <div className="border rounded-md">
+                      {items.length === 0 ? (
+                        <div className="p-4 text-center text-muted-foreground">
+                          No items added yet
+                        </div>
+                      ) : (
+                        <div className="divide-y">
+                          {items.map((item) => (
+                            <div
+                              key={item.id}
+                              className="p-3 flex justify-between items-center"
+                            >
+                              <div>
+                                <p className="font-medium">{item.name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {formatToRupees(item.price)} each
+                                </p>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <div className="flex items-center border rounded-md">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() =>
+                                      updateQuantity(
+                                        item.id,
+                                        Math.max(1, item.quantity - 1)
+                                      )
+                                    }
+                                  >
+                                    -
+                                  </Button>
+                                  <span className="w-8 text-center">
+                                    {item.quantity}
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() =>
+                                      updateQuantity(item.id, item.quantity + 1)
+                                    }
+                                  >
+                                    +
+                                  </Button>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive"
+                                  onClick={() => removeItem(item.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{isEditMode ? "Edit Transaction Details" : "Sale Details"}</CardTitle>
+                    <CardDescription>
+                      Customer information and payment
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="customer">Customer Name</Label>
+                      <Input
+                        id="customer"
+                        placeholder="Walk-in Customer"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Phone Number</Label>
+                      <Input
+                        id="phone"
+                        placeholder="Customer Phone Number"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">For WhatsApp invoice delivery</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email Address</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="Customer Email"
+                        value={customerEmail}
+                        onChange={(e) => setCustomerEmail(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">For email invoice delivery</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="discount">Discount (%)</Label>
+                      <Input
+                        id="discount"
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={discount}
+                        onChange={(e) => setDiscount(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="vat">GST Rate (%)</Label>
+                      <Input
+                        id="vat"
+                        type="number"
+                        min="0"
+                        value={vatRate}
+                        onChange={(e) => setVatRate(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="border-t pt-4 space-y-2">
+                      <div className="flex justify-between">
+                        <span>Subtotal:</span>
+                        <span>{formatToRupees(subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Discount ({discount}%):</span>
+                        <span>-{formatToRupees(discountAmount)}</span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>GST ({vatRate}%):</span>
+                        <span>{formatToRupees(vatAmount)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-lg">
+                        <span>Total:</span>
+                        <span>{formatToRupees(total)}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className={isEditMode ? "flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4 sm:justify-between" : ""}>
+                    {isEditMode ? (
+                      <>
+                        <Button 
+                          variant="outline" 
+                          onClick={cancelEdit}
+                          disabled={isProcessing}
+                          className="w-full sm:w-auto"
+                        >
+                          Cancel
+                        </Button>
+                        <Button 
+                          className="w-full sm:w-auto" 
+                          onClick={saveEditedTransaction}
+                          disabled={isProcessing}
+                        >
+                          {isProcessing ? (
+                            <span className="flex items-center">
+                              <div className="animate-spin mr-2 h-4 w-4 border-2 border-b-transparent border-white rounded-full"></div>
+                              Saving...
+                            </span>
+                          ) : (
+                            <span className="flex items-center">
+                              Save Changes
+                            </span>
+                          )}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button 
+                        className="w-full" 
+                        size="lg" 
+                        onClick={processSale}
+                        disabled={items.length === 0 || isProcessing}
+                      >
+                        {isProcessing ? (
+                          <span className="flex items-center">
+                            <div className="animate-spin mr-2 h-4 w-4 border-2 border-b-transparent border-white rounded-full"></div>
+                            Processing...
+                          </span>
+                        ) : (
+                          <span className="flex items-center">
+                            <ShoppingCart className="mr-2 h-5 w-5" />
+                            Complete Sale & Send Invoice
+                          </span>
+                        )}
+                      </Button>
+                    )}
+                  </CardFooter>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="all-transactions">
+            <Card className="border-none shadow-md overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-amber-50 to-amber-100/50">
                 <CardTitle>All Transactions</CardTitle>
                 <CardDescription>
-                  View all previous sales transactions
+                  Complete list of all sales transactions with edit functionality
                 </CardDescription>
+                <div className="mt-4 relative">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Search by customer name..."
+                      value={customerSearch}
+                      onChange={(e) => setCustomerSearch(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent>
-                <div className="rounded-md border">
+              <CardContent className="px-0">
+                <div className="overflow-auto max-h-[600px]">
                   <Table>
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 bg-white dark:bg-gray-900">
                       <TableRow>
+                        <TableHead>Transaction ID</TableHead>
                         <TableHead>Date</TableHead>
                         <TableHead>Customer</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead>Actions</TableHead>
+                        <TableHead>Items</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead className="text-center">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {currentTransactions.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
-                            No transactions found
-                          </TableCell>
-                        </TableRow>
-                      ) : (
+                      {currentTransactions.length > 0 ? (
                         currentTransactions.map((transaction) => (
                           <TableRow key={transaction.id}>
-                            <TableCell>
-                              {transaction.timestamp.toLocaleDateString()}
+                            <TableCell className="font-medium">
+                              #{transaction.id}
                             </TableCell>
-                            <TableCell>{transaction.customerName}</TableCell>
-                            <TableCell>{formatToRupees(transaction.total)}</TableCell>
-                            <TableCell>
-                              <div className="flex space-x-1">
+                            <TableCell>{transaction.timestamp.toLocaleDateString()}</TableCell>
+                            <TableCell className="font-medium text-blue-600">
+                              {transaction.customerName}
+                            </TableCell>
+                            <TableCell>{transaction.items.length}</TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatToRupees(transaction.total)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <div className="flex space-x-1 justify-center">
                                 <Button 
                                   variant="ghost" 
                                   size="sm" 
@@ -740,206 +1031,4 @@ const Sales = () => {
                                   <Button 
                                     variant="ghost" 
                                     size="sm" 
-                                    onClick={() => handleSendEmail(transaction)}
-                                    title="Send Email"
-                                  >
-                                    <Mail className="h-4 w-4" />
-                                  </Button>
-                                )}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => startEditTransaction(transaction)}
-                                  title="Edit Transaction"
-                                  disabled={isEditMode}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-                
-                {/* Pagination */}
-                {allTransactions.length > 0 && (
-                  <div className="mt-4">
-                    <Pagination>
-                      <PaginationContent>
-                        <PaginationItem>
-                          <PaginationPrevious 
-                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                            className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
-                          />
-                        </PaginationItem>
-                        
-                        {getPageNumbers().map(number => (
-                          <PaginationItem key={number}>
-                            <PaginationLink 
-                              isActive={currentPage === number}
-                              onClick={() => setCurrentPage(number)}
-                            >
-                              {number}
-                            </PaginationLink>
-                          </PaginationItem>
-                        ))}
-                        
-                        <PaginationItem>
-                          <PaginationNext 
-                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                            className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
-                          />
-                        </PaginationItem>
-                      </PaginationContent>
-                    </Pagination>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>{isEditMode ? "Edit Transaction Details" : "Sale Details"}</CardTitle>
-                <CardDescription>
-                  Customer information and payment
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="customer">Customer Name</Label>
-                  <Input
-                    id="customer"
-                    placeholder="Walk-in Customer"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input
-                    id="phone"
-                    placeholder="Customer Phone Number"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">For WhatsApp invoice delivery</p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Customer Email"
-                    value={customerEmail}
-                    onChange={(e) => setCustomerEmail(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">For email invoice delivery</p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="discount">Discount (%)</Label>
-                  <Input
-                    id="discount"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={discount}
-                    onChange={(e) => setDiscount(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="vat">GST Rate (%)</Label>
-                  <Input
-                    id="vat"
-                    type="number"
-                    min="0"
-                    value={vatRate}
-                    onChange={(e) => setVatRate(e.target.value)}
-                  />
-                </div>
-
-                <div className="border-t pt-4 space-y-2">
-                  <div className="flex justify-between">
-                    <span>Subtotal:</span>
-                    <span>{formatToRupees(subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Discount ({discount}%):</span>
-                    <span>-{formatToRupees(discountAmount)}</span>
-                  </div>
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>GST ({vatRate}%):</span>
-                    <span>{formatToRupees(vatAmount)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>Total:</span>
-                    <span>{formatToRupees(total)}</span>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className={isEditMode ? "flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4 sm:justify-between" : ""}>
-                {isEditMode ? (
-                  <>
-                    <Button 
-                      variant="outline" 
-                      onClick={cancelEdit}
-                      disabled={isProcessing}
-                      className="w-full sm:w-auto"
-                    >
-                      Cancel
-                    </Button>
-                    <Button 
-                      className="w-full sm:w-auto" 
-                      onClick={saveEditedTransaction}
-                      disabled={isProcessing}
-                    >
-                      {isProcessing ? (
-                        <span className="flex items-center">
-                          <div className="animate-spin mr-2 h-4 w-4 border-2 border-b-transparent border-white rounded-full"></div>
-                          Saving...
-                        </span>
-                      ) : (
-                        <span className="flex items-center">
-                          Save Changes
-                        </span>
-                      )}
-                    </Button>
-                  </>
-                ) : (
-                  <Button 
-                    className="w-full" 
-                    size="lg" 
-                    onClick={processSale}
-                    disabled={items.length === 0 || isProcessing}
-                  >
-                    {isProcessing ? (
-                      <span className="flex items-center">
-                        <div className="animate-spin mr-2 h-4 w-4 border-2 border-b-transparent border-white rounded-full"></div>
-                        Processing...
-                      </span>
-                    ) : (
-                      <span className="flex items-center">
-                        <ShoppingCart className="mr-2 h-5 w-5" />
-                        Complete Sale & Send Invoice
-                      </span>
-                    )}
-                  </Button>
-                )}
-              </CardFooter>
-            </Card>
-          </div>
-        </div>
-      </div>
-    </DashboardLayout>
-  );
-};
-
-export default Sales;
+                                    onClick={() => handleSendEmail(transaction
