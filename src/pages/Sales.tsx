@@ -1031,4 +1031,83 @@ const Sales = () => {
                                   <Button 
                                     variant="ghost" 
                                     size="sm" 
-                                    onClick={() => handleSendEmail(transaction
+                                    onClick={() => handleSendEmail(transaction)}
+                                    title="Send Email"
+                                  >
+                                    <Mail className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => startEditTransaction(transaction)}
+                                  title="Edit Transaction"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-6">
+                            No transactions found
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="flex items-center justify-between px-4 py-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportTransactionData}
+                    className="flex items-center"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Export All Transactions
+                  </Button>
+                  
+                  {totalPages > 1 && (
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                            className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                          />
+                        </PaginationItem>
+                        
+                        {getPageNumbers().map(page => (
+                          <PaginationItem key={page}>
+                            <PaginationLink
+                              isActive={currentPage === page}
+                              onClick={() => setCurrentPage(page)}
+                            >
+                              {page}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ))}
+                        
+                        <PaginationItem>
+                          <PaginationNext
+                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                            className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </DashboardLayout>
+  );
+};
+
+export default Sales;
