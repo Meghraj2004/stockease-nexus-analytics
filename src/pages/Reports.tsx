@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import {
@@ -34,12 +35,13 @@ import {
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Printer, RefreshCcw, Edit, ClipboardList } from "lucide-react";
+import { Download, FileText, Printer, RefreshCcw, Edit, ClipboardList, Search } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { formatToRupees } from "@/types/inventory";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 // Import our custom hook for sales report data
 import { useSalesReportData } from "@/services/reportsService";
@@ -48,6 +50,7 @@ const Reports = () => {
   const [timeRange, setTimeRange] = useState("month");
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [currentTransaction, setCurrentTransaction] = useState(null);
+  const [customerSearch, setCustomerSearch] = useState("");
   
   // Use our custom hook to get real-time data
   const { 
@@ -60,6 +63,11 @@ const Reports = () => {
     exportTransactionData,
     updateTransaction
   } = useSalesReportData(timeRange);
+
+  // Filter transactions based on customer search
+  const filteredTransactions = reportData?.allTransactions?.filter(transaction => 
+    transaction.customer.toLowerCase().includes(customerSearch.toLowerCase())
+  ) || [];
 
   // Handle PDF export
   const handleExportPDF = () => {
@@ -517,6 +525,18 @@ const Reports = () => {
                 <CardDescription>
                   Complete list of all sales transactions with edit functionality
                 </CardDescription>
+                <div className="mt-4 relative">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Search by customer name..."
+                      value={customerSearch}
+                      onChange={(e) => setCustomerSearch(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="px-0">
                 <div className="overflow-auto max-h-[600px]">
@@ -532,33 +552,40 @@ const Reports = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {reportData.allTransactions && reportData.allTransactions.map((transaction) => (
-                        <TableRow key={transaction.id}>
-                          <TableCell className="font-medium">
-                            #{transaction.id}
-                          </TableCell>
-                          <TableCell>{transaction.date}</TableCell>
-                          <TableCell>{transaction.customer}</TableCell>
-                          <TableCell>{transaction.items}</TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatToRupees(transaction.total)}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={() => handleEditTransaction(transaction)}
-                            >
-                              <Edit size={16} className="text-blue-600" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {(!reportData.allTransactions || reportData.allTransactions.length === 0) && (
+                      {filteredTransactions.length > 0 ? (
+                        filteredTransactions.map((transaction) => (
+                          <TableRow key={transaction.id}>
+                            <TableCell className="font-medium">
+                              #{transaction.id}
+                            </TableCell>
+                            <TableCell>{transaction.date}</TableCell>
+                            <TableCell className="font-medium text-blue-600">
+                              {transaction.customer}
+                            </TableCell>
+                            <TableCell>{transaction.items}</TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatToRupees(transaction.total)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                onClick={() => handleEditTransaction(transaction)}
+                              >
+                                <Edit size={16} className="text-blue-600" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
                         <TableRow>
                           <TableCell colSpan={6} className="text-center py-8">
                             <ClipboardList size={40} className="mx-auto text-gray-300 mb-2" />
-                            <p className="text-muted-foreground">No transaction records found for the selected time period</p>
+                            {customerSearch ? (
+                              <p className="text-muted-foreground">No transactions found for customer "{customerSearch}"</p>
+                            ) : (
+                              <p className="text-muted-foreground">No transaction records found for the selected time period</p>
+                            )}
                           </TableCell>
                         </TableRow>
                       )}
@@ -568,7 +595,7 @@ const Reports = () => {
               </CardContent>
               <CardFooter className="bg-gray-50/50 flex justify-between">
                 <div className="text-sm text-muted-foreground">
-                  {reportData.allTransactions?.length || 0} transactions found
+                  {filteredTransactions.length} out of {reportData.allTransactions?.length || 0} transactions found
                 </div>
                 <Button 
                   variant="outline" 
