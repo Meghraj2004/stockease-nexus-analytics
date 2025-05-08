@@ -1,4 +1,3 @@
-
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy, limit, where, Timestamp, getDocs, doc, updateDoc } from "firebase/firestore";
 import { useState, useEffect } from "react";
@@ -161,7 +160,10 @@ export const useSalesReportData = (timeRange: string) => {
       const transaction = {
         id: doc.id,
         date: date ? date.toISOString().split('T')[0] : '',
-        customer: sale.customer || 'Guest',
+        // Make sure customer name is handled properly - default to "Guest" if missing
+        customer: sale.customer && typeof sale.customer === 'string' && sale.customer.trim() !== '' 
+          ? sale.customer 
+          : 'Guest',
         items: sale.items?.length || 0,
         total: sale.total || 0,
       };
@@ -223,11 +225,23 @@ export const useSalesReportData = (timeRange: string) => {
       { name: "Smartwatch", value: 10000 }
     ];
     
+    // Sample transactions with proper customer names
+    const customerNames = [
+      "Rajesh Kumar", 
+      "Priya Sharma", 
+      "Amit Patel", 
+      "Sunita Verma", 
+      "Vijay Singh",
+      "Neha Gupta",
+      "Deepak Joshi",
+      "Meera Reddy"
+    ];
+    
     // Sample transactions
     const sampleTransactions = Array.from({ length: 5 }, (_, i) => ({
       id: `INV${10001 + i}`,
       date: new Date(Date.now() - i * 86400000).toISOString().split('T')[0],
-      customer: `Customer ${i + 1}`,
+      customer: customerNames[i % customerNames.length],
       items: Math.floor(Math.random() * 5) + 1,
       total: Math.floor(Math.random() * 5000) + 1000
     }));
@@ -236,7 +250,7 @@ export const useSalesReportData = (timeRange: string) => {
     const sampleAllTransactions = Array.from({ length: 20 }, (_, i) => ({
       id: `INV${10001 + i}`,
       date: new Date(Date.now() - i * 86400000).toISOString().split('T')[0],
-      customer: `Customer ${Math.floor(i/2) + 1}`,
+      customer: customerNames[i % customerNames.length],
       items: Math.floor(Math.random() * 5) + 1,
       total: Math.floor(Math.random() * 5000) + 1000
     }));
@@ -471,12 +485,20 @@ export const useSalesReportData = (timeRange: string) => {
       
       const topProductsData = [
         ...productsHeader,
-        ...data.topProducts.map(item => [
-          item.name,
-          item.value,
-          formatToRupees(item.value),
-          `${((item.value / totalProductSales) * 100).toFixed(2)}%`
-        ])
+        ...data.topProducts.map(item => {
+          const salesValue = item.value;
+          const percentOfTotal = (salesValue / totalProductSales) * 100;
+          const estimatedProfit = salesValue * (data.summary.profitMargin / 100);
+          
+          return [
+            item.name,
+            salesValue,
+            formatToRupees(salesValue),
+            `${percentOfTotal.toFixed(2)}%`,
+            formatToRupees(estimatedProfit),
+            `${data.summary.profitMargin.toFixed(1)}%`
+          ];
+        })
       ];
       
       // Add total row
