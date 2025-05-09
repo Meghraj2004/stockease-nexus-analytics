@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -1043,4 +1044,47 @@ const Sales = () => {
                   </div>
                 </div>
               </CardContent>
-              <CardFooter className={isEditMode ? "flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space
+              <CardFooter className={isEditMode ? "flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4" : ""}>
+                {isEditMode ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={cancelEdit}
+                      className="w-full sm:w-auto"
+                      disabled={isProcessing}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={saveEditedTransaction}
+                      className="w-full sm:w-auto"
+                      disabled={isProcessing}
+                    >
+                      {isProcessing ? "Saving..." : "Save Changes"}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    onClick={processSale}
+                    className="w-full"
+                    disabled={isProcessing || items.length === 0}
+                  >
+                    {isProcessing ? (
+                      "Processing..."
+                    ) : (
+                      <>
+                        <ShoppingCart className="mr-2 h-4 w-4" /> Complete Sale
+                      </>
+                    )}
+                  </Button>
+                )}
+              </CardFooter>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+};
+
+export default Sales;
