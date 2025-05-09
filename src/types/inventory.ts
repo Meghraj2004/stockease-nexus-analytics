@@ -1,3 +1,4 @@
+
 export interface InventoryItem {
   id: string;
   name: string;
@@ -5,6 +6,10 @@ export interface InventoryItem {
   price: number;
   quantity: number;
   imageUrl: string;
+  sku: string;
+  category: string;
+  costPrice: number;
+  reorderLevel: number;
   createdAt: Date;
   updatedAt: Date;
 }
