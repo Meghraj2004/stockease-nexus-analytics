@@ -937,17 +937,7 @@ const Sales = () => {
                     </TableBody>
                   </Table>
                 </div>
-                <div className="flex items-center justify-between px-4 py-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExportTransactionData}
-                    className="flex items-center"
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Export All Transactions
-                  </Button>
-                  
+                <div className="flex items-center justify-end px-4 py-4">
                   {totalPages > 1 && (
                     <Pagination>
                       <PaginationContent>
