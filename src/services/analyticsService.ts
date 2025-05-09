@@ -1,3 +1,4 @@
+
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy, limit, where, Timestamp, getDocs, DocumentData } from "firebase/firestore";
 import { useState, useEffect } from "react";
@@ -549,16 +550,17 @@ export const usePaymentMethodData = () => {
         // If no data, provide sample data
         if (Object.entries(paymentMethodMap).length === 0 || 
             Object.values(paymentMethodMap).every(v => v === 0)) {
-          const samplePaymentMethods = [
+          const samplePaymentMethods: PaymentMethodData[] = [
             { name: "Cash", value: 65, trends: [] },
             { name: "Online", value: 35, trends: [] }
           ];
           setData(samplePaymentMethods);
         } else {
           // Convert to array format needed for charts
-          const formattedData = Object.keys(paymentMethodMap).map(method => ({
+          const formattedData: PaymentMethodData[] = Object.keys(paymentMethodMap).map(method => ({
             name: method,
-            value: paymentMethodMap[method]
+            value: paymentMethodMap[method],
+            trends: [] // Initialize with empty trends array
           }));
           
           // Add trends data if available
@@ -597,9 +599,9 @@ export const usePaymentMethodData = () => {
         setIsLoading(false);
         
         // Fallback to sample data
-        const samplePaymentMethods = [
-          { name: "Cash", value: 65 },
-          { name: "Online", value: 35 }
+        const samplePaymentMethods: PaymentMethodData[] = [
+          { name: "Cash", value: 65, trends: [] },
+          { name: "Online", value: 35, trends: [] }
         ];
         setData(samplePaymentMethods);
       });
@@ -611,9 +613,9 @@ export const usePaymentMethodData = () => {
       setIsLoading(false);
       
       // Fallback to sample data
-      const samplePaymentMethods = [
-        { name: "Cash", value: 65 },
-        { name: "Online", value: 35 }
+      const samplePaymentMethods: PaymentMethodData[] = [
+        { name: "Cash", value: 65, trends: [] },
+        { name: "Online", value: 35, trends: [] }
       ];
       setData(samplePaymentMethods);
     }
