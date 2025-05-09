@@ -1,4 +1,3 @@
-
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { formatToRupees } from "@/types/inventory";
@@ -232,7 +231,7 @@ export const generateInvoicePDF = (saleData: any) => {
           doc.setFontSize(8);
           doc.setTextColor(COLORS.mediumGray);
           doc.text(
-            `Page ${data.pageNumber} of ${doc.internal.getNumberOfPages()}`,
+            `Page ${data.pageNumber} of ${doc.internal.pages.length - 1}`,
             pageWidth - margin,
             pageHeight - 10,
             { align: 'right' }
