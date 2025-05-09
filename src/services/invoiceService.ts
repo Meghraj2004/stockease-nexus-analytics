@@ -24,6 +24,7 @@ declare module "jspdf" {
       columnStyles?: any;
       margin?: any;
       tableWidth?: any;
+      didDrawPage?: (data: any) => void;
     }) => any;
     lastAutoTable: {
       finalY: number;
@@ -38,6 +39,17 @@ const COMPANY_ADDRESS = "123 Business Street, City, Country";
 const COMPANY_PHONE = "+91 9421612110";
 const COMPANY_EMAIL = "contact@shopsmartpos.com";
 const COMPANY_WEBSITE = "www.shopsmartpos.com";
+
+// Color scheme for invoice
+const COLORS = {
+  primary: "#3498db",    // Blue
+  secondary: "#2ecc71",  // Green
+  accent: "#f39c12",     // Orange
+  text: "#2c3e50",       // Dark blue-gray
+  lightGray: "#ecf0f1",  // Light gray
+  mediumGray: "#bdc3c7", // Medium gray
+  white: "#ffffff"
+};
 
 // Helper function to download the PDF using browser's built-in functionality
 const downloadPDF = (pdf: jsPDF, filename: string) => {
@@ -68,55 +80,116 @@ export const generateInvoicePDF = (saleData: any) => {
       format: 'a4'
     });
     
-    // Add company header with improved styling
-    doc.setFontSize(22);
-    doc.setTextColor(41, 128, 185); // Blue color for company name
-    doc.text(COMPANY_NAME, 14, 22);
+    // Set up page dimensions
+    const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
+    const margin = 14;
+    const usableWidth = pageWidth - (margin * 2);
     
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100); // Gray color for details
-    doc.text(COMPANY_TAGLINE, 14, 28);
-    doc.text(`Address: ${COMPANY_ADDRESS}`, 14, 33);
-    doc.text(`Phone: ${COMPANY_PHONE}`, 14, 38);
-    doc.text(`Email: ${COMPANY_EMAIL}`, 14, 43);
-    doc.text(`Website: ${COMPANY_WEBSITE}`, 14, 48);
+    // Add header with stylish background
+    doc.setFillColor(COLORS.primary);
+    doc.rect(0, 0, pageWidth, 40, 'F');
     
-    // Invoice details
+    // Add company logo/name with shadow effect
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(24);
+    doc.setTextColor(COLORS.white);
+    doc.text(COMPANY_NAME, margin, 18);
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text(COMPANY_TAGLINE, margin, 26);
+    
+    // Add invoice title with highlight box
+    doc.setFillColor(COLORS.accent);
+    doc.roundedRect(pageWidth - 70, 10, 56, 20, 3, 3, 'F');
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
-    doc.setTextColor(41, 128, 185);
-    doc.text("INVOICE", 170, 22, { align: "right" });
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Invoice #: ${saleData.id.slice(0, 8)}`, 170, 30, { align: "right" });
-    doc.text(`Date: ${new Date(saleData.timestamp).toLocaleDateString()}`, 170, 35, { align: "right" });
-    doc.text(`Time: ${new Date(saleData.timestamp).toLocaleTimeString()}`, 170, 40, { align: "right" });
+    doc.setTextColor(COLORS.white);
+    doc.text("INVOICE", pageWidth - 42, 22, { align: "center" });
     
-    // Add a line separator
+    // Add company details section with top border
+    doc.setDrawColor(COLORS.primary);
     doc.setLineWidth(0.5);
-    doc.setDrawColor(41, 128, 185);
-    doc.line(14, 52, 196, 52);
+    doc.line(margin, 45, pageWidth - margin, 45);
     
-    // Customer info
-    doc.setFontSize(12);
-    doc.setTextColor(41, 128, 185);
-    doc.text("Bill To:", 14, 60);
+    // Company contact info box with light background
+    doc.setFillColor(COLORS.lightGray);
+    doc.roundedRect(margin, 50, usableWidth / 2 - 5, 40, 2, 2, 'F');
+    
+    doc.setTextColor(COLORS.text);
     doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
-    doc.text(saleData.customerName || "Walk-in Customer", 14, 65);
+    doc.setFont("helvetica", "bold");
+    doc.text("FROM:", margin + 5, 58);
+    doc.setFont("helvetica", "normal");
+    doc.text(COMPANY_ADDRESS, margin + 5, 65);
+    doc.text(`Phone: ${COMPANY_PHONE}`, margin + 5, 72);
+    doc.text(`Email: ${COMPANY_EMAIL}`, margin + 5, 79);
+    doc.text(`Website: ${COMPANY_WEBSITE}`, margin + 5, 86);
+    
+    // Invoice details box with light background
+    doc.setFillColor(COLORS.lightGray);
+    doc.roundedRect(margin + usableWidth / 2 + 5, 50, usableWidth / 2 - 5, 40, 2, 2, 'F');
+    
+    // Add invoice details
+    const rightColumnX = margin + usableWidth / 2 + 10;
+    doc.setFont("helvetica", "bold");
+    doc.text("INVOICE DETAILS:", rightColumnX, 58);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Invoice #: ${saleData.id.slice(0, 8)}`, rightColumnX, 65);
+    doc.text(`Date: ${new Date(saleData.timestamp).toLocaleDateString()}`, rightColumnX, 72);
+    doc.text(`Time: ${new Date(saleData.timestamp).toLocaleTimeString()}`, rightColumnX, 79);
+    
+    // Payment method with icon-like indicator
+    doc.setFont("helvetica", "bold");
+    doc.text("Payment Method:", rightColumnX, 86);
+    
+    // Draw a small colored circle for payment method
+    const paymentMethodColor = saleData.paymentMethod === 'cash' ? COLORS.secondary : COLORS.accent;
+    doc.setFillColor(paymentMethodColor);
+    doc.circle(rightColumnX + 30, 85, 2, 'F');
+    
+    doc.setFont("helvetica", "normal");
+    doc.text(saleData.paymentMethod === 'cash' ? 'Cash' : 'Online', rightColumnX + 34, 86);
+    
+    // Add customer info with styled box
+    const customerY = 100;
+    doc.setFillColor(COLORS.lightGray);
+    doc.roundedRect(margin, customerY - 8, usableWidth, 30, 2, 2, 'F');
+    
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(COLORS.primary);
+    doc.text("BILL TO:", margin + 5, customerY);
+    
+    doc.setTextColor(COLORS.text);
+    doc.setFont("helvetica", "normal");
+    doc.text(saleData.customerName || "Walk-in Customer", margin + 5, customerY + 7);
+    
     if (saleData.customerPhone) {
-      doc.text(`Phone: ${saleData.customerPhone}`, 14, 70);
-    }
-    if (saleData.customerEmail) {
-      doc.text(`Email: ${saleData.customerEmail}`, 14, 75);
+      doc.text(`Phone: ${saleData.customerPhone}`, margin + 5, customerY + 14);
     }
     
-    // Item table header
-    doc.setFontSize(12);
-    doc.setTextColor(41, 128, 185);
-    doc.text("Invoice Items:", 14, 85);
+    if (saleData.customerEmail) {
+      doc.text(`Email: ${saleData.customerEmail}`, margin + 5, customerY + (saleData.customerPhone ? 21 : 14));
+    }
+    
+    // Line separator before items table
+    const tableStartY = customerY + 30;
+    doc.setDrawColor(COLORS.primary);
+    doc.setLineWidth(0.5);
+    doc.line(margin, tableStartY, pageWidth - margin, tableStartY);
+    
+    // Items table title with background
+    doc.setFillColor(COLORS.primary);
+    doc.rect(margin, tableStartY + 2, usableWidth, 8, 'F');
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(COLORS.white);
+    doc.text("INVOICE ITEMS", pageWidth / 2, tableStartY + 7, { align: "center" });
     
     // Prepare table data
-    const tableColumn = ["Item", "Price", "Qty", "Total"];
+    const tableColumns = ["Item", "Price", "Qty", "Total"];
     const tableRows = saleData.items.map((item: any) => [
       item.name,
       formatToRupees(item.price),
@@ -124,41 +197,56 @@ export const generateInvoicePDF = (saleData: any) => {
       formatToRupees(item.price * item.quantity)
     ]);
     
-    // Generate the table with autoTable with error handling
+    // Generate the table with enhanced styling
     try {
       doc.autoTable({
-        startY: 90,
-        head: [tableColumn],
+        startY: tableStartY + 12,
+        head: [tableColumns],
         body: tableRows,
         theme: 'grid',
         styles: { 
-          fontSize: 9,
-          cellPadding: 3
+          fontSize: 10,
+          cellPadding: 4,
+          lineColor: COLORS.mediumGray,
+          lineWidth: 0.1
         },
         headStyles: { 
-          fillColor: [41, 128, 185],
+          fillColor: [52, 152, 219], // COLORS.primary in RGB
           textColor: 255,
           fontSize: 10,
           fontStyle: 'bold',
-          halign: 'center'
+          halign: 'center',
+          valign: 'middle'
         },
         alternateRowStyles: {
-          fillColor: [240, 240, 240]
+          fillColor: [245, 247, 250],
         },
         columnStyles: {
-          0: { cellWidth: 'auto' },
+          0: { cellWidth: 'auto', fontStyle: 'bold' },
           1: { cellWidth: 'auto', halign: 'right' },
           2: { cellWidth: 'auto', halign: 'center' },
-          3: { cellWidth: 'auto', halign: 'right' }
+          3: { cellWidth: 'auto', halign: 'right', fontStyle: 'bold' }
+        },
+        didDrawPage: function(data) {
+          // Add page numbers if multi-page
+          doc.setFontSize(8);
+          doc.setTextColor(COLORS.mediumGray);
+          doc.text(
+            `Page ${data.pageNumber} of ${doc.internal.getNumberOfPages()}`,
+            pageWidth - margin,
+            pageHeight - 10,
+            { align: 'right' }
+          );
         }
       });
     } catch (autoTableError) {
       console.error("Error in autoTable:", autoTableError);
       // Create a simple table as fallback
-      doc.text("Items:", 14, 90);
-      let yPos = 100;
+      doc.setTextColor(COLORS.text);
+      doc.text("Items:", margin, tableStartY + 15);
+      let yPos = tableStartY + 25;
       tableRows.forEach((row: any[], index: number) => {
-        doc.text(`${index + 1}. ${row[0]} - ${row[1]} × ${row[2]} = ${row[3]}`, 20, yPos);
+        doc.text(`${index + 1}. ${row[0]} - ${row[1]} × ${row[2]} = ${row[3]}`, margin + 5, yPos);
         yPos += 10;
       });
     }
@@ -168,41 +256,69 @@ export const generateInvoicePDF = (saleData: any) => {
     try {
       finalY = doc.lastAutoTable.finalY + 10;
     } catch (error) {
-      finalY = 150; // Fallback position if lastAutoTable is not available
+      finalY = 200; // Fallback position if lastAutoTable is not available
     }
     
-    // Summary
+    // Add summary section with background
+    doc.setFillColor(COLORS.lightGray);
+    doc.roundedRect(pageWidth - 80, finalY, 66, 40, 2, 2, 'F');
+    
+    // Summary heading
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(COLORS.primary);
+    doc.text("PAYMENT SUMMARY", pageWidth - 47, finalY + 8, { align: "center" });
+    
+    // Summary details
     doc.setFontSize(10);
-    doc.text("Subtotal:", 140, finalY);
-    doc.text(`${formatToRupees(saleData.subtotal)}`, 190, finalY, { align: "right" });
+    doc.setTextColor(COLORS.text);
+    doc.setFont("helvetica", "normal");
+    doc.text("Subtotal:", pageWidth - 75, finalY + 16);
+    doc.text(`${formatToRupees(saleData.subtotal)}`, pageWidth - 18, finalY + 16, { align: "right" });
     
-    doc.text(`Discount (${saleData.discount}%):`, 140, finalY + 5);
-    doc.text(`${formatToRupees(saleData.discountAmount)}`, 190, finalY + 5, { align: "right" });
+    doc.text(`Discount (${saleData.discount}%):`, pageWidth - 75, finalY + 22);
+    doc.text(`-${formatToRupees(saleData.discountAmount)}`, pageWidth - 18, finalY + 22, { align: "right" });
     
-    doc.text(`GST (${saleData.vatRate}%):`, 140, finalY + 10);
-    doc.text(`${formatToRupees(saleData.vatAmount)}`, 190, finalY + 10, { align: "right" });
+    doc.text(`GST (${saleData.vatRate}%):`, pageWidth - 75, finalY + 28);
+    doc.text(`${formatToRupees(saleData.vatAmount)}`, pageWidth - 18, finalY + 28, { align: "right" });
     
     // Add a line before the total
+    doc.setDrawColor(COLORS.primary);
     doc.setLineWidth(0.5);
-    doc.line(140, finalY + 13, 190, finalY + 13);
+    doc.line(pageWidth - 75, finalY + 32, pageWidth - 18, finalY + 32);
     
-    doc.setFontSize(12);
-    doc.setFont(undefined, 'bold');
-    doc.text("Total:", 140, finalY + 20);
-    doc.text(`${formatToRupees(saleData.total)}`, 190, finalY + 20, { align: "right" });
+    // Total with highlighted background
+    doc.setFillColor(COLORS.primary);
+    doc.roundedRect(pageWidth - 75, finalY + 33, 57, 7, 1, 1, 'F');
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(COLORS.white);
+    doc.text("Total:", pageWidth - 70, finalY + 38);
+    doc.text(`${formatToRupees(saleData.total)}`, pageWidth - 18, finalY + 38, { align: "right" });
     
-    // Add a line separator before footer
-    doc.setLineWidth(0.5);
-    doc.line(14, finalY + 30, 196, finalY + 30);
+    // Add a decorative bottom border
+    doc.setDrawColor(COLORS.primary);
+    doc.setLineWidth(1);
+    doc.line(margin, finalY + 50, pageWidth - margin, finalY + 50);
     
-    // Footer
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'normal');
-    doc.text("Payment Terms: Due on receipt", 14, finalY + 40);
-    doc.text(`Thank you for shopping with ${COMPANY_NAME}!`, 14, finalY + 45);
-    doc.setTextColor(100, 100, 100);
+    // Footer section
+    const footerY = finalY + 60;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(COLORS.text);
+    doc.text("Payment Terms: Due on receipt", margin, footerY);
+    
+    // Thank you message with style
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(COLORS.secondary);
+    doc.text(`Thank you for your business!`, pageWidth/2, footerY + 8, { align: "center" });
+    
+    // Footer info
+    doc.setTextColor(COLORS.mediumGray);
     doc.setFontSize(8);
-    doc.text("Generated with ShopSmart POS Software", 14, finalY + 50);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Generated by ${COMPANY_NAME} • ${new Date().toLocaleDateString()}`, pageWidth/2, pageHeight - 10, { align: "center" });
     
     // Use the browser's built-in download functionality
     const filename = `invoice-${saleData.id.slice(0, 8)}.pdf`;
