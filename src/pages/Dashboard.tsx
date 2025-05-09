@@ -2,17 +2,19 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
-import { DollarSign, Package, ShoppingCart, TrendingUp } from "lucide-react";
+import { DollarSign, Package, ShoppingCart, TrendingUp, CreditCard } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy, limit, onSnapshot, where, Timestamp } from "firebase/firestore";
 import { InventoryItem, formatToRupees } from "@/types/inventory";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 const Dashboard = () => {
   const { userData } = useAuth();
   const [salesData, setSalesData] = useState<any[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [paymentMethodData, setPaymentMethodData] = useState<any[]>([]);
   const [inventoryCount, setInventoryCount] = useState(0);
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [salesCount, setSalesCount] = useState(0);
@@ -143,6 +145,36 @@ const Dashboard = () => {
         })).sort((a, b) => b.value - a.value).slice(0, 4);
         
         setTopProducts(topProductsArray);
+      }
+    );
+    
+    // Get payment method distribution
+    const unsubPaymentMethods = onSnapshot(
+      query(collection(db, "sales")),
+      (snapshot) => {
+        const paymentMethodCounts: {[key: string]: number} = {
+          "Cash": 0,
+          "Online": 0
+        };
+        
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          const paymentMethod = data.paymentMethod || "Cash"; // Default to Cash if not specified
+          
+          if (paymentMethodCounts[paymentMethod] !== undefined) {
+            paymentMethodCounts[paymentMethod]++;
+          } else {
+            paymentMethodCounts[paymentMethod] = 1;
+          }
+        });
+        
+        // Convert to array for the chart
+        const paymentMethodArray = Object.keys(paymentMethodCounts).map(method => ({
+          name: method,
+          value: paymentMethodCounts[method]
+        }));
+        
+        setPaymentMethodData(paymentMethodArray);
         setIsLoading(false);
       }
     );
@@ -153,10 +185,12 @@ const Dashboard = () => {
       unsubInventory();
       unsubChartData();
       unsubTopProducts();
+      unsubPaymentMethods();
     };
-  }, []);
+  }, [totalRevenue]);
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+  const PAYMENT_COLORS = ['#00C49F', '#0088FE'];
 
   return (
     <DashboardLayout>
@@ -293,6 +327,85 @@ const Dashboard = () => {
                     <Tooltip formatter={(value) => [formatToRupees(value as number), 'Revenue']} />
                   </PieChart>
                 </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+          
+          {/* Payment Method Chart */}
+          <Card className="col-span-2">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Payment Methods</CardTitle>
+                <CardDescription>
+                  Distribution of payment methods used in transactions
+                </CardDescription>
+              </div>
+              <CreditCard className="h-5 w-5 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center items-center h-[300px]">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                </div>
+              ) : paymentMethodData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground">
+                  <p>No payment method data available yet</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex items-center justify-center">
+                    <ResponsiveContainer width="100%" height={250}>
+                      <PieChart>
+                        <Pie
+                          data={paymentMethodData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                          label={({ name, value, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {paymentMethodData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={PAYMENT_COLORS[index % PAYMENT_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  
+                  <div className="flex flex-col justify-center">
+                    <div className="space-y-4">
+                      {paymentMethodData.map((item, index) => (
+                        <div key={item.name} className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <div 
+                              className="w-4 h-4 mr-2 rounded-full" 
+                              style={{ backgroundColor: PAYMENT_COLORS[index % PAYMENT_COLORS.length] }}
+                            ></div>
+                            <span className="font-medium">{item.name}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium">{item.value}</span>
+                            <span className="text-muted-foreground text-sm">
+                              ({((item.value / paymentMethodData.reduce((sum, i) => sum + i.value, 0)) * 100).toFixed(1)}%)
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="mt-6 pt-6 border-t">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Total Transactions:</span>
+                        <span className="font-bold">
+                          {paymentMethodData.reduce((sum, item) => sum + item.value, 0)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>

@@ -14,6 +14,14 @@ export interface Transaction {
   customer: string;
   items: number;
   total: number;
+  paymentMethod?: string;
+}
+
+export interface PaymentMethodMetric {
+  method: string;
+  count: number;
+  revenue: number;
+  averageOrderValue: number;
 }
 
 export interface SalesReport {
@@ -21,6 +29,8 @@ export interface SalesReport {
   topProducts: Array<{name: string, value: number}>;
   recentTransactions: Transaction[];
   allTransactions: Transaction[];
+  paymentMethodData: Array<{name: string, value: number}>;
+  paymentMethodMetrics: PaymentMethodMetric[];
   summary: {
     totalSales: number;
     transactions: number;
@@ -36,6 +46,8 @@ export const useSalesReportData = (timeRange: string) => {
     topProducts: [],
     recentTransactions: [],
     allTransactions: [],
+    paymentMethodData: [],
+    paymentMethodMetrics: [],
     summary: {
       totalSales: 0,
       transactions: 0,
@@ -120,6 +132,12 @@ export const useSalesReportData = (timeRange: string) => {
     // Process top products data
     const productSales: Record<string, number> = {};
     
+    // Process payment methods data
+    const paymentMethods: Record<string, { count: number, revenue: number }> = {
+      "Cash": { count: 0, revenue: 0 },
+      "Online": { count: 0, revenue: 0 }
+    };
+    
     // Process transactions
     const recentTransactions: Transaction[] = [];
     const allTransactions: Transaction[] = [];
@@ -142,6 +160,14 @@ export const useSalesReportData = (timeRange: string) => {
       
       // For total sales
       totalSales += sale.total || 0;
+      
+      // For payment methods
+      const paymentMethod = sale.paymentMethod || "Cash"; // Default to Cash if not specified
+      if (!paymentMethods[paymentMethod]) {
+        paymentMethods[paymentMethod] = { count: 0, revenue: 0 };
+      }
+      paymentMethods[paymentMethod].count += 1;
+      paymentMethods[paymentMethod].revenue += sale.total || 0;
       
       // For product sales
       if (sale.items && Array.isArray(sale.items)) {
@@ -166,6 +192,7 @@ export const useSalesReportData = (timeRange: string) => {
           : 'Guest',
         items: sale.items?.length || 0,
         total: sale.total || 0,
+        paymentMethod: sale.paymentMethod || "Cash", // Add payment method to transaction
       };
       
       // For recent transactions (only first 5)
@@ -189,6 +216,22 @@ export const useSalesReportData = (timeRange: string) => {
       .map(name => ({ name, value: productSales[name] }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
+      
+    // Format payment methods data for chart
+    const paymentMethodData = Object.keys(paymentMethods).map(method => ({
+      name: method,
+      value: paymentMethods[method].count
+    }));
+    
+    // Create payment method metrics
+    const paymentMethodMetrics: PaymentMethodMetric[] = Object.keys(paymentMethods).map(method => ({
+      method,
+      count: paymentMethods[method].count,
+      revenue: paymentMethods[method].revenue,
+      averageOrderValue: paymentMethods[method].count > 0 
+        ? paymentMethods[method].revenue / paymentMethods[method].count
+        : 0
+    }));
     
     // Calculate summary data
     const averageSale = transactionCount > 0 ? totalSales / transactionCount : 0;
@@ -198,6 +241,8 @@ export const useSalesReportData = (timeRange: string) => {
       topProducts,
       recentTransactions,
       allTransactions,
+      paymentMethodData,
+      paymentMethodMetrics,
       summary: {
         totalSales,
         transactions: transactionCount,
@@ -225,7 +270,29 @@ export const useSalesReportData = (timeRange: string) => {
       { name: "Smartwatch", value: 10000 }
     ];
     
-    // Sample transactions with proper customer names
+    // Sample payment methods
+    const samplePaymentMethods = [
+      { name: "Cash", value: 65 },
+      { name: "Online", value: 35 }
+    ];
+    
+    // Sample payment method metrics
+    const samplePaymentMethodMetrics = [
+      {
+        method: "Cash",
+        count: 65,
+        revenue: 210000,
+        averageOrderValue: 3230.77
+      },
+      {
+        method: "Online",
+        count: 35,
+        revenue: 145000,
+        averageOrderValue: 4142.86
+      }
+    ];
+    
+    // Sample customer names
     const customerNames = [
       "Rajesh Kumar", 
       "Priya Sharma", 
@@ -237,13 +304,17 @@ export const useSalesReportData = (timeRange: string) => {
       "Meera Reddy"
     ];
     
+    // Sample payment methods for transactions
+    const paymentMethods = ["Cash", "Online"];
+    
     // Sample transactions
     const sampleTransactions = Array.from({ length: 5 }, (_, i) => ({
       id: `INV${10001 + i}`,
       date: new Date(Date.now() - i * 86400000).toISOString().split('T')[0],
       customer: customerNames[i % customerNames.length],
       items: Math.floor(Math.random() * 5) + 1,
-      total: Math.floor(Math.random() * 5000) + 1000
+      total: Math.floor(Math.random() * 5000) + 1000,
+      paymentMethod: paymentMethods[i % 2]
     }));
     
     // Sample all transactions (more data)
@@ -252,7 +323,8 @@ export const useSalesReportData = (timeRange: string) => {
       date: new Date(Date.now() - i * 86400000).toISOString().split('T')[0],
       customer: customerNames[i % customerNames.length],
       items: Math.floor(Math.random() * 5) + 1,
-      total: Math.floor(Math.random() * 5000) + 1000
+      total: Math.floor(Math.random() * 5000) + 1000,
+      paymentMethod: paymentMethods[i % 2]
     }));
     
     // Calculate summary
@@ -263,6 +335,8 @@ export const useSalesReportData = (timeRange: string) => {
       topProducts: sampleProducts,
       recentTransactions: sampleTransactions,
       allTransactions: sampleAllTransactions,
+      paymentMethodData: samplePaymentMethods,
+      paymentMethodMetrics: samplePaymentMethodMetrics,
       summary: {
         totalSales,
         transactions: 145,
@@ -747,6 +821,118 @@ export const useSalesReportData = (timeRange: string) => {
     }
   };
 
+  // Export payment method data with enhanced analysis
+  const exportPaymentMethodData = () => {
+    try {
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Create header with report information
+      const headerData = [
+        [`Payment Method Analysis Report - ${timeRange.charAt(0).toUpperCase() + timeRange.slice(1)}`],
+        [`Generated on ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`],
+        [],
+      ];
+      
+      // Payment method summary sheet
+      const summaryHeader = [
+        ...headerData,
+        ["Payment Method Distribution"],
+        [],
+        ["Payment Method", "Count", "Percentage", "Total Revenue", "Average Order Value"]
+      ];
+      
+      const totalCount = data.paymentMethodData.reduce((sum, item) => sum + item.value, 0);
+      
+      const summaryData = [
+        ...summaryHeader,
+        ...data.paymentMethodMetrics.map(item => {
+          const percentage = (item.count / totalCount) * 100;
+          
+          return [
+            item.method,
+            item.count,
+            `${percentage.toFixed(1)}%`,
+            formatToRupees(item.revenue),
+            formatToRupees(item.averageOrderValue)
+          ];
+        })
+      ];
+      
+      // Add total row
+      const totalRevenue = data.paymentMethodMetrics.reduce((sum, item) => sum + item.revenue, 0);
+      const totalAvg = totalCount > 0 ? totalRevenue / totalCount : 0;
+      
+      summaryData.push(
+        [],
+        [
+          "Total",
+          totalCount,
+          "100%",
+          formatToRupees(totalRevenue),
+          formatToRupees(totalAvg)
+        ]
+      );
+      
+      const sheet = XLSX.utils.aoa_to_sheet(summaryData);
+      
+      // Set column widths for better readability
+      sheet['!cols'] = [
+        { wch: 20 }, // Payment method
+        { wch: 10 }, // Count
+        { wch: 15 }, // Percentage
+        { wch: 20 }, // Total Revenue
+        { wch: 20 }, // Average Order Value
+      ];
+      
+      XLSX.utils.book_append_sheet(wb, sheet, "Payment Methods");
+      
+      // Create detailed transactions sheet by payment method
+      const transactionsHeader = [
+        ...headerData,
+        ["Transactions by Payment Method"],
+        [],
+        ["Transaction ID", "Date", "Customer", "Items", "Total Value", "Payment Method"]
+      ];
+      
+      const transactionsData = [
+        ...transactionsHeader,
+        ...data.allTransactions.map(item => [
+          item.id,
+          item.date,
+          item.customer,
+          item.items,
+          formatToRupees(item.total),
+          item.paymentMethod || "Cash"
+        ])
+      ];
+      
+      const transSheet = XLSX.utils.aoa_to_sheet(transactionsData);
+      
+      // Set column widths for better readability
+      transSheet['!cols'] = [
+        { wch: 20 }, // Transaction ID
+        { wch: 15 }, // Date
+        { wch: 25 }, // Customer
+        { wch: 10 }, // Items
+        { wch: 20 }, // Total Value
+        { wch: 15 }, // Payment Method
+      ];
+      
+      XLSX.utils.book_append_sheet(wb, transSheet, "Transactions by Payment");
+      
+      // Generate file with specific name for payment method report
+      const fileName = `payment-methods-report-${timeRange}-${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      
+      console.log(`Successfully exported payment method report to ${fileName}`);
+      return true;
+    } catch (err) {
+      console.error("Error generating payment method report:", err);
+      return false;
+    }
+  };
+
   return { 
     data, 
     isLoading, 
@@ -755,6 +941,7 @@ export const useSalesReportData = (timeRange: string) => {
     exportToExcel,
     exportProductData,
     exportTransactionData,
+    exportPaymentMethodData,
     updateTransaction
   };
 };

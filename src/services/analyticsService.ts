@@ -1,4 +1,3 @@
-
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy, limit, where, Timestamp, getDocs, DocumentData } from "firebase/firestore";
 import { useState, useEffect } from "react";
@@ -25,6 +24,15 @@ export interface ProductPerformance {
 export interface DailySales {
   name: string;
   sales: number;
+}
+
+export interface PaymentMethodData {
+  name: string;
+  value: number;
+  trends?: Array<{
+    date: string;
+    [key: string]: number | string;
+  }>;
 }
 
 export interface AnalyticsSummary {
@@ -476,6 +484,138 @@ export const useAnalyticsSummary = () => {
         lastUpdated: new Date(),
       };
       setData(sampleSummary);
+    }
+  }, []);
+
+  return { data, isLoading, error };
+};
+
+// Hook for payment method analytics
+export const usePaymentMethodData = () => {
+  const [data, setData] = useState<PaymentMethodData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIsLoading(true);
+    
+    // Get data from sales collection for payment method analysis
+    const salesRef = collection(db, "sales");
+    
+    try {
+      const unsubscribe = onSnapshot(query(salesRef), (snapshot) => {
+        // Process sales to extract payment method data
+        const paymentMethodMap: Record<string, number> = {
+          "Cash": 0,
+          "Online": 0
+        };
+        
+        // Data for trends analysis
+        const allDates: Record<string, {
+          date: string;
+          Cash: number;
+          Online: number;
+        }> = {};
+        
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          
+          // For payment method counts
+          const paymentMethod = data.paymentMethod || "Cash"; // Default to Cash if not specified
+          paymentMethodMap[paymentMethod] = (paymentMethodMap[paymentMethod] || 0) + 1;
+          
+          // For trends over time
+          if (data.timestamp) {
+            const date = data.timestamp.toDate();
+            const monthYear = date.toLocaleDateString('default', { month: 'short', year: '2-digit' });
+            
+            if (!allDates[monthYear]) {
+              allDates[monthYear] = {
+                date: monthYear,
+                Cash: 0,
+                Online: 0
+              };
+            }
+            
+            // Increment the count for this payment method in this month
+            if (paymentMethod === "Cash") {
+              allDates[monthYear].Cash += 1;
+            } else if (paymentMethod === "Online") {
+              allDates[monthYear].Online += 1;
+            }
+          }
+        });
+        
+        // If no data, provide sample data
+        if (Object.entries(paymentMethodMap).length === 0 || 
+            Object.values(paymentMethodMap).every(v => v === 0)) {
+          const samplePaymentMethods = [
+            { name: "Cash", value: 65, trends: [] },
+            { name: "Online", value: 35, trends: [] }
+          ];
+          setData(samplePaymentMethods);
+        } else {
+          // Convert to array format needed for charts
+          const formattedData = Object.keys(paymentMethodMap).map(method => ({
+            name: method,
+            value: paymentMethodMap[method]
+          }));
+          
+          // Add trends data if available
+          if (Object.keys(allDates).length > 0) {
+            const trendData = Object.values(allDates).sort((a, b) => {
+              // Sort by month/year
+              const [aMonth, aYear] = a.date.split(' ');
+              const [bMonth, bYear] = b.date.split(' ');
+              
+              const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+              
+              // Compare years first
+              if (aYear !== bYear) {
+                return parseInt(aYear) - parseInt(bYear);
+              }
+              // Then compare months
+              return months.indexOf(aMonth) - months.indexOf(bMonth);
+            });
+            
+            // Only add trends if we have more than one data point
+            if (trendData.length > 1) {
+              formattedData.forEach(item => {
+                item.trends = trendData;
+              });
+            }
+          }
+          
+          setData(formattedData);
+        }
+        
+        setIsLoading(false);
+      }, (error) => {
+        console.error("Error fetching payment method data:", error);
+        setError(error.message);
+        setIsLoading(false);
+        
+        // Fallback to sample data
+        const samplePaymentMethods = [
+          { name: "Cash", value: 65 },
+          { name: "Online", value: 35 }
+        ];
+        setData(samplePaymentMethods);
+      });
+      
+      return () => unsubscribe();
+    } catch (err: any) {
+      console.error("Error setting up payment method data listener:", err);
+      setError(err.message);
+      setIsLoading(false);
+      
+      // Fallback to sample data
+      const samplePaymentMethods = [
+        { name: "Cash", value: 65 },
+        { name: "Online", value: 35 }
+      ];
+      setData(samplePaymentMethods);
     }
   }, []);
 

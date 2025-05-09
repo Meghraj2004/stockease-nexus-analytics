@@ -1,707 +1,789 @@
 
-import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardFooter,
-} from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-} from "recharts";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Printer, RefreshCcw, Edit, ClipboardList, Search } from "lucide-react";
-import { toast } from "@/components/ui/use-toast";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Download, FileText, Printer, Mail, BarChart2, CreditCard } from "lucide-react";
 import { formatToRupees } from "@/types/inventory";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-
-// Import our custom hook for sales report data
+import { useState } from "react";
 import { useSalesReportData } from "@/services/reportsService";
+import { useToast } from "@/hooks/use-toast";
 
 const Reports = () => {
-  const [timeRange, setTimeRange] = useState("month");
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [currentTransaction, setCurrentTransaction] = useState(null);
-  const [customerSearch, setCustomerSearch] = useState("");
+  const [timeRange, setTimeRange] = useState<string>("month");
+  const [customerFilter, setCustomerFilter] = useState<string>("");
+  const { toast } = useToast();
   
-  // Use our custom hook to get real-time data
   const { 
-    data: reportData, 
+    data, 
     isLoading, 
     error, 
     exportToPDF, 
     exportToExcel,
     exportProductData,
     exportTransactionData,
-    updateTransaction
+    exportPaymentMethodData
   } = useSalesReportData(timeRange);
-
-  // Filter transactions based on customer search
-  const filteredTransactions = reportData?.allTransactions?.filter(transaction => 
-    transaction.customer.toLowerCase().includes(customerSearch.toLowerCase())
+  
+  // Filter transactions based on customer name
+  const filteredTransactions = data?.allTransactions.filter(transaction => 
+    transaction.customer.toLowerCase().includes(customerFilter.toLowerCase())
   ) || [];
-
-  // Handle PDF export
+  
+  // Get payment method data
+  const paymentMethodData = data?.paymentMethodData || [];
+  
+  // Colors for charts
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+  const PAYMENT_COLORS = ['#00C49F', '#0088FE'];
+  
+  // Handle export actions
   const handleExportPDF = () => {
-    const success = exportToPDF();
-    
-    if (success) {
+    if (exportToPDF()) {
       toast({
-        title: "Report Downloaded",
-        description: "Sales report has been downloaded as PDF",
+        title: "PDF Report Generated",
+        description: "The sales report has been downloaded as a PDF"
       });
     } else {
       toast({
-        variant: "destructive",
-        title: "Export Failed",
-        description: "There was an error generating the PDF report",
+        title: "Error Generating PDF",
+        description: "There was a problem creating the PDF report",
+        variant: "destructive"
       });
     }
   };
-
-  // Handle Excel export
+  
   const handleExportExcel = () => {
-    const success = exportToExcel();
-    
-    if (success) {
+    if (exportToExcel()) {
       toast({
-        title: "Report Downloaded",
-        description: "Sales report has been downloaded as Excel file",
+        title: "Excel Report Generated",
+        description: "The sales report has been downloaded as an Excel file"
       });
     } else {
       toast({
-        variant: "destructive",
-        title: "Export Failed",
-        description: "There was an error generating the Excel report",
+        title: "Error Generating Excel Report",
+        description: "There was a problem creating the Excel report",
+        variant: "destructive"
       });
     }
   };
   
-  // Handle product data export
-  const handleExportProductData = () => {
-    const success = exportProductData();
-    
-    if (success) {
+  const handleExportPaymentMethodData = () => {
+    if (exportPaymentMethodData()) {
       toast({
-        title: "Product Data Downloaded",
-        description: "Product sales data has been downloaded as Excel file",
+        title: "Payment Method Report Generated",
+        description: "The payment method analysis has been downloaded"
       });
     } else {
       toast({
-        variant: "destructive",
-        title: "Export Failed",
-        description: "There was an error generating the product data report",
+        title: "Error Generating Report",
+        description: "There was a problem creating the payment method report",
+        variant: "destructive"
       });
     }
   };
   
-  // Handle transaction data export - Updated to clarify it exports ALL transactions
-  const handleExportTransactionData = () => {
-    const success = exportTransactionData();
-    
-    if (success) {
-      toast({
-        title: "All Transactions Downloaded",
-        description: "Complete transaction data has been downloaded as Excel file",
-      });
-    } else {
-      toast({
-        variant: "destructive",
-        title: "Export Failed",
-        description: "There was an error generating the transactions report",
-      });
-    }
-  };
-
-  // Handle print
-  const handlePrint = () => {
-    window.print();
-    toast({
-      title: "Print Initiated",
-      description: "Sales report print dialog opened",
-    });
-  };
-
-  // Handle edit transaction
-  const handleEditTransaction = (transaction) => {
-    setCurrentTransaction(transaction);
-    setIsEditDialogOpen(true);
-  };
-
-  // Handle save transaction
-  const handleSaveTransaction = () => {
-    if (!currentTransaction) return;
-    
-    const success = updateTransaction(currentTransaction);
-    if (success) {
-      toast({
-        title: "Transaction Updated",
-        description: "The transaction has been successfully updated",
-      });
-      setIsEditDialogOpen(false);
-    } else {
-      toast({
-        variant: "destructive",
-        title: "Update Failed",
-        description: "There was an error updating the transaction",
-      });
-    }
-  };
-
-  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
-
-  // Show loading state
-  if (isLoading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-[80vh]">
-          <div className="text-center">
-            <RefreshCcw size={40} className="mx-auto animate-spin text-stockease-600" />
-            <h2 className="mt-4 text-xl font-medium">Loading Reports Data...</h2>
-            <p className="text-muted-foreground">
-              Fetching real-time data from Firebase
-            </p>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  // Show error state
-  if (error) {
-    return (
-      <DashboardLayout>
-        <div className="space-y-6">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-            <h2 className="text-xl font-bold text-red-600">Error Loading Reports Data</h2>
-            <p className="text-red-500 mt-2">{error}</p>
-            <Button 
-              variant="default" 
-              className="mt-4"
-              onClick={() => {
-                // Force re-render
-                setTimeRange(prev => prev === "week" ? "month" : "week");
-              }}
-            >
-              <RefreshCcw size={16} className="mr-2" />
-              Retry
-            </Button>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-stockease-600 to-stockease-800">
-              Sales Reports
-            </h1>
+            <h1 className="text-3xl font-bold">Reports</h1>
             <p className="text-muted-foreground">
-              View and analyze your sales data
+              Generate and download business reports
             </p>
           </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium">Time Period:</span>
-              <Select value={timeRange} onValueChange={setTimeRange}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Select range" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="week">This Week</SelectItem>
-                  <SelectItem value="month">This Month</SelectItem>
-                  <SelectItem value="quarter">This Quarter</SelectItem>
-                  <SelectItem value="year">This Year</SelectItem>
-                  <SelectItem value="all">All Time</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline" 
-                size="sm"
-                className="flex items-center gap-1"
-                onClick={handleExportPDF}
-              >
-                <FileText size={16} />
-                <span>PDF</span>
-              </Button>
-              <Button
-                variant="outline" 
-                size="sm"
-                className="flex items-center gap-1"
-                onClick={handleExportExcel}
-              >
-                <Download size={16} />
-                <span>Excel</span>
-              </Button>
-              <Button
-                variant="outline" 
-                size="sm"
-                className="flex items-center gap-1"
-                onClick={handlePrint}
-              >
-                <Printer size={16} />
-                <span>Print</span>
-              </Button>
-            </div>
+          
+          <div className="flex items-center space-x-2">
+            <Select value={timeRange} onValueChange={setTimeRange}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select time range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="week">Past Week</SelectItem>
+                <SelectItem value="month">Past Month</SelectItem>
+                <SelectItem value="quarter">Past Quarter</SelectItem>
+                <SelectItem value="year">Past Year</SelectItem>
+                <SelectItem value="all">All Time</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
-
+        
+        {/* Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-200 h-8 w-24 rounded"></div>
+                ) : (
+                  formatToRupees(data.summary.totalSales)
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Transactions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-200 h-8 w-16 rounded"></div>
+                ) : (
+                  data.summary.transactions
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Average Sale</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-200 h-8 w-20 rounded"></div>
+                ) : (
+                  formatToRupees(data.summary.averageSale)
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Profit Margin</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-200 h-8 w-16 rounded"></div>
+                ) : (
+                  `${data.summary.profitMargin.toFixed(1)}%`
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        
+        {/* Report Tabs */}
         <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="bg-muted/50 p-1">
-            <TabsTrigger value="overview" className="rounded-md">Overview</TabsTrigger>
-            <TabsTrigger value="products" className="rounded-md">Products</TabsTrigger>
-            <TabsTrigger value="transactions" className="rounded-md">Transactions</TabsTrigger>
-            <TabsTrigger value="all-transactions" className="rounded-md">All Transactions</TabsTrigger>
+          <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:w-[600px]">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="transactions">Transactions</TabsTrigger>
+            <TabsTrigger value="products">Products</TabsTrigger>
+            <TabsTrigger value="payment">Payment Methods</TabsTrigger>
           </TabsList>
-
-          {/* Overview Tab Content */}
+          
+          {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <Card className="overflow-hidden border-none shadow-md bg-gradient-to-br from-white to-blue-50">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-blue-50/50">
-                  <CardTitle className="text-sm font-medium">
-                    Total Sales
-                  </CardTitle>
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Monthly Sales Chart */}
+              <Card className="md:col-span-2">
+                <CardHeader>
+                  <CardTitle>Monthly Sales</CardTitle>
+                  <CardDescription>Sales performance over time</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {formatToRupees(reportData.summary.totalSales)}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    +18% from last period
-                  </p>
+                <CardContent className="h-[300px]">
+                  {isLoading ? (
+                    <div className="flex justify-center items-center h-full">
+                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={data.monthlySalesData}
+                        margin={{
+                          top: 5,
+                          right: 30,
+                          left: 20,
+                          bottom: 5,
+                        }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip formatter={(value) => [formatToRupees(value as number), 'Sales']} />
+                        <Legend />
+                        <Bar dataKey="sales" fill="#0ea5e9" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
+                <CardFooter className="flex justify-between">
+                  <Button variant="outline" onClick={handleExportPDF} disabled={isLoading}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Export as PDF
+                  </Button>
+                  <Button variant="outline" onClick={handleExportExcel} disabled={isLoading}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export as Excel
+                  </Button>
+                </CardFooter>
               </Card>
-              <Card className="overflow-hidden border-none shadow-md bg-gradient-to-br from-white to-green-50">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-green-50/50">
-                  <CardTitle className="text-sm font-medium">
-                    Transactions
-                  </CardTitle>
+              
+              {/* Top Products Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Top Products</CardTitle>
+                  <CardDescription>Best performing products by revenue</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">+{reportData.summary.transactions}</div>
-                  <p className="text-xs text-muted-foreground">
-                    +5% from last period
-                  </p>
+                <CardContent className="h-[300px]">
+                  {isLoading ? (
+                    <div className="flex justify-center items-center h-full">
+                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                    </div>
+                  ) : data.topProducts.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      No product data available
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={data.topProducts}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {data.topProducts.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => [formatToRupees(value as number), 'Revenue']} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
+                <CardFooter>
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    onClick={exportProductData}
+                    disabled={isLoading}
+                  >
+                    <BarChart2 className="mr-2 h-4 w-4" />
+                    Export Product Analysis
+                  </Button>
+                </CardFooter>
               </Card>
-              <Card className="overflow-hidden border-none shadow-md bg-gradient-to-br from-white to-amber-50">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-amber-50/50">
-                  <CardTitle className="text-sm font-medium">
-                    Average Sale
-                  </CardTitle>
+              
+              {/* Payment Methods Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Payment Methods</CardTitle>
+                  <CardDescription>Analysis of payment methods used</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {formatToRupees(reportData.summary.averageSale)}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    +12% from last period
-                  </p>
+                <CardContent className="h-[300px]">
+                  {isLoading ? (
+                    <div className="flex justify-center items-center h-full">
+                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                    </div>
+                  ) : paymentMethodData.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      No payment method data available
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={paymentMethodData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {paymentMethodData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={PAYMENT_COLORS[index % PAYMENT_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => [`${value} transactions`, 'Count']} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
-              </Card>
-              <Card className="overflow-hidden border-none shadow-md bg-gradient-to-br from-white to-purple-50">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-purple-50/50">
-                  <CardTitle className="text-sm font-medium">
-                    Profit Margin
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">+{reportData.summary.profitMargin.toFixed(1)}%</div>
-                  <p className="text-xs text-muted-foreground">
-                    +2% from last period
-                  </p>
-                </CardContent>
+                <CardFooter>
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    onClick={handleExportPaymentMethodData}
+                    disabled={isLoading}
+                  >
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Export Payment Analysis
+                  </Button>
+                </CardFooter>
               </Card>
             </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card className="col-span-2 md:col-span-1 border-none shadow-md overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100/50">
-                  <CardTitle>Sales Trend</CardTitle>
-                  <CardDescription>
-                    Monthly sales for the current year
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-6 pl-2">
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart
-                      data={reportData.monthlySalesData}
+            
+            {/* Recent Transactions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Transactions</CardTitle>
+                <CardDescription>Last 5 sales transactions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="space-y-2">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="animate-pulse bg-gray-200 h-12 rounded"></div>
+                    ))}
+                  </div>
+                ) : data.recentTransactions.length === 0 ? (
+                  <div className="text-center py-4 text-muted-foreground">
+                    No transactions to display
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Transaction ID</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Items</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                          <TableHead>Payment Method</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data.recentTransactions.map((transaction) => (
+                          <TableRow key={transaction.id}>
+                            <TableCell className="font-medium">#{transaction.id.substring(0, 8)}</TableCell>
+                            <TableCell>{transaction.date}</TableCell>
+                            <TableCell>{transaction.customer}</TableCell>
+                            <TableCell>{transaction.items}</TableCell>
+                            <TableCell className="text-right">{formatToRupees(transaction.total)}</TableCell>
+                            <TableCell>{transaction.paymentMethod || "Cash"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          {/* Transactions Tab */}
+          <TabsContent value="transactions" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>All Transactions</CardTitle>
+                <CardDescription>
+                  Detailed list of all sales transactions
+                </CardDescription>
+                <div className="pt-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div className="relative flex-1">
+                      <Input
+                        placeholder="Search by customer name..."
+                        value={customerFilter}
+                        onChange={(e) => setCustomerFilter(e.target.value)}
+                        className="pl-8"
+                      />
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className="h-5 w-5 absolute left-2 top-2.5 text-muted-foreground"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
+                        />
+                      </svg>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      onClick={exportTransactionData}
+                      className="min-w-[130px]"
+                      disabled={isLoading}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Export Data
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="space-y-2">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="animate-pulse bg-gray-200 h-12 rounded"></div>
+                    ))}
+                  </div>
+                ) : filteredTransactions.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    No transactions match your search criteria
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Transaction ID</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Items</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                          <TableHead>Payment Method</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredTransactions.map((transaction) => (
+                          <TableRow key={transaction.id}>
+                            <TableCell className="font-medium">#{transaction.id.substring(0, 8)}</TableCell>
+                            <TableCell>{transaction.date}</TableCell>
+                            <TableCell>{transaction.customer}</TableCell>
+                            <TableCell>{transaction.items}</TableCell>
+                            <TableCell className="text-right">{formatToRupees(transaction.total)}</TableCell>
+                            <TableCell>{transaction.paymentMethod || "Cash"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter className="justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Showing {filteredTransactions.length} of {data.allTransactions?.length || 0} transactions
+                </div>
+                <Button 
+                  variant="outline"
+                  onClick={() => window.print()}
+                  disabled={isLoading}
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print
+                </Button>
+              </CardFooter>
+            </Card>
+          </TabsContent>
+          
+          {/* Products Tab */}
+          <TabsContent value="products" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Product Sales Analysis</CardTitle>
+                <CardDescription>Detailed breakdown of product performance</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="space-y-2">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="animate-pulse bg-gray-200 h-12 rounded"></div>
+                    ))}
+                  </div>
+                ) : data.topProducts.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    No product data available
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead className="text-right">Revenue</TableHead>
+                          <TableHead className="text-right">% of Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data.topProducts.map((product) => {
+                          const percentOfTotal = (product.value / data.summary.totalSales) * 100;
+                          
+                          return (
+                            <TableRow key={product.name}>
+                              <TableCell className="font-medium">{product.name}</TableCell>
+                              <TableCell className="text-right">{formatToRupees(product.value)}</TableCell>
+                              <TableCell className="text-right">{percentOfTotal.toFixed(1)}%</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter>
+                <Button 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={exportProductData}
+                  disabled={isLoading}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export Product Analysis
+                </Button>
+              </CardFooter>
+            </Card>
+            
+            {/* Product Sales Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Product Sales Distribution</CardTitle>
+                <CardDescription>Visual representation of sales by product</CardDescription>
+              </CardHeader>
+              <CardContent className="h-[400px]">
+                {isLoading ? (
+                  <div className="flex justify-center items-center h-full">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                  </div>
+                ) : data.topProducts.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    No product data available
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={data.topProducts}
+                      layout="vertical"
                       margin={{
                         top: 5,
                         right: 30,
-                        left: 20,
+                        left: 60,
                         bottom: 5,
                       }}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis tickFormatter={(value) => formatToRupees(value)} />
-                      <Tooltip formatter={(value) => formatToRupees(Number(value))} />
+                      <XAxis type="number" domain={[0, 'dataMax']} tickFormatter={(value) => formatToRupees(value)} />
+                      <YAxis type="category" dataKey="name" />
+                      <Tooltip formatter={(value) => [formatToRupees(value as number), 'Revenue']} />
                       <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="sales"
-                        stroke="#0ea5e9"
-                        strokeWidth={2}
-                        activeDot={{ r: 8 }}
-                      />
-                    </LineChart>
+                      <Bar dataKey="value" name="Revenue" fill="#0ea5e9" />
+                    </BarChart>
                   </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              <Card className="col-span-2 md:col-span-1 border-none shadow-md overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-green-50 to-green-100/50">
-                  <CardTitle>Top Products</CardTitle>
-                  <CardDescription>Best selling products by revenue</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={reportData.topProducts}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      >
-                        {reportData.topProducts.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={COLORS[index % COLORS.length]}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => formatToRupees(Number(value))} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Products Tab Content */}
-          <TabsContent value="products" className="space-y-4">
-            <Card className="border-none shadow-md overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-indigo-50 to-indigo-100/50">
-                <CardTitle>Product Performance</CardTitle>
-                <CardDescription>
-                  Sales analysis by product
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart
-                    data={reportData.topProducts.map(product => ({
-                      product: product.name,
-                      sales: product.value,
-                      profit: product.value * 0.4 // Example calculation
-                    }))}
-                    margin={{
-                      top: 20,
-                      right: 30,
-                      left: 20,
-                      bottom: 5,
-                    }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="product" />
-                    <YAxis tickFormatter={(value) => formatToRupees(value)} />
-                    <Tooltip formatter={(value) => formatToRupees(Number(value))} />
-                    <Legend />
-                    <Bar dataKey="sales" fill="#0ea5e9" name="Sales (₹)" />
-                    <Bar dataKey="profit" fill="#22c55e" name="Profit (₹)" />
-                  </BarChart>
-                </ResponsiveContainer>
+                )}
               </CardContent>
-              <CardFooter className="bg-gray-50/50 flex justify-end">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="flex items-center gap-1" 
-                  onClick={handleExportProductData}
-                >
-                  <Download size={16} />
-                  <span>Export Product Data</span>
-                </Button>
-              </CardFooter>
             </Card>
           </TabsContent>
-
-          {/* Transactions Tab Content */}
-          <TabsContent value="transactions" className="space-y-4">
-            <Card className="border-none shadow-md overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-cyan-50 to-cyan-100/50">
-                <CardTitle>Recent Transactions</CardTitle>
-                <CardDescription>
-                  Your most recent sales transactions
-                </CardDescription>
+          
+          {/* Payment Methods Tab */}
+          <TabsContent value="payment" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start">
+                  <div>
+                    <CardTitle>Payment Method Analysis</CardTitle>
+                    <CardDescription>Breakdown of transactions by payment type</CardDescription>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    className="mt-4 sm:mt-0"
+                    onClick={handleExportPaymentMethodData}
+                    disabled={isLoading}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Export Analysis
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Transaction ID</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Items</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {reportData.recentTransactions.map((transaction) => (
-                      <TableRow key={transaction.id}>
-                        <TableCell className="font-medium">
-                          #{transaction.id}
-                        </TableCell>
-                        <TableCell>{transaction.date}</TableCell>
-                        <TableCell>{transaction.customer}</TableCell>
-                        <TableCell>{transaction.items}</TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatToRupees(transaction.total)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                {isLoading ? (
+                  <div className="flex justify-center items-center h-[300px]">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                  </div>
+                ) : paymentMethodData.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground">
+                    <p>No payment method data available</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="flex items-center justify-center">
+                      <ResponsiveContainer width="100%" height={250}>
+                        <PieChart>
+                          <Pie
+                            data={paymentMethodData}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                            label={({ name, value, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          >
+                            {paymentMethodData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={PAYMENT_COLORS[index % PAYMENT_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    
+                    <div className="flex flex-col justify-center">
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-medium">Payment Method Distribution</h3>
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left py-2">Payment Method</th>
+                              <th className="text-center py-2">Transactions</th>
+                              <th className="text-right py-2">Percentage</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {paymentMethodData.map((item) => {
+                              const total = paymentMethodData.reduce((sum, i) => sum + i.value, 0);
+                              const percentage = (item.value / total) * 100;
+                              
+                              return (
+                                <tr key={item.name} className="border-b">
+                                  <td className="py-3">
+                                    <div className="flex items-center">
+                                      <div 
+                                        className="w-3 h-3 mr-2 rounded-full"
+                                        style={{ 
+                                          backgroundColor: item.name === 'Cash' 
+                                            ? PAYMENT_COLORS[0] 
+                                            : PAYMENT_COLORS[1]
+                                        }}
+                                      ></div>
+                                      {item.name}
+                                    </div>
+                                  </td>
+                                  <td className="text-center">{item.value}</td>
+                                  <td className="text-right">{percentage.toFixed(1)}%</td>
+                                </tr>
+                              );
+                            })}
+                            <tr className="font-medium">
+                              <td className="py-3">Total</td>
+                              <td className="text-center">
+                                {paymentMethodData.reduce((sum, item) => sum + item.value, 0)}
+                              </td>
+                              <td className="text-right">100%</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
-              <CardFooter className="bg-gray-50/50 flex justify-end">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="flex items-center gap-1" 
-                  onClick={handleExportTransactionData}
-                >
-                  <Download size={16} />
-                  <span>Export All Transactions</span>
-                </Button>
-              </CardFooter>
             </Card>
-          </TabsContent>
-
-          {/* All Transactions Tab Content */}
-          <TabsContent value="all-transactions" className="space-y-4">
-            <Card className="border-none shadow-md overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-amber-50 to-amber-100/50">
-                <CardTitle>All Transactions</CardTitle>
-                <CardDescription>
-                  Complete list of all sales transactions with edit functionality
-                </CardDescription>
-                <div className="mt-4 relative">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="Search by customer name..."
-                      value={customerSearch}
-                      onChange={(e) => setCustomerSearch(e.target.value)}
-                      className="pl-8"
-                    />
+            
+            {/* Payment Method Metrics */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Payment Method Metrics</CardTitle>
+                <CardDescription>Key metrics comparison between payment methods</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="space-y-2">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="animate-pulse bg-gray-200 h-12 rounded"></div>
+                    ))}
+                  </div>
+                ) : paymentMethodData.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    No payment method metrics available
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Payment Method</TableHead>
+                          <TableHead className="text-right">Transaction Count</TableHead>
+                          <TableHead className="text-right">Total Revenue</TableHead>
+                          <TableHead className="text-right">Average Order Value</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data.paymentMethodMetrics?.map((metric) => (
+                          <TableRow key={metric.method}>
+                            <TableCell className="font-medium">{metric.method}</TableCell>
+                            <TableCell className="text-right">{metric.count}</TableCell>
+                            <TableCell className="text-right">{formatToRupees(metric.revenue)}</TableCell>
+                            <TableCell className="text-right">{formatToRupees(metric.averageOrderValue)}</TableCell>
+                          </TableRow>
+                        )) || []}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            
+            {/* Payment Method Transactions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Transactions by Payment Method</CardTitle>
+                <CardDescription>Detailed transaction list filtered by payment method</CardDescription>
+                <div className="pt-4">
+                  <div className="flex items-center space-x-2">
+                    <Label>Filter by payment method</Label>
+                    <Select defaultValue="all">
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="All payment methods" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All payment methods</SelectItem>
+                        <SelectItem value="cash">Cash</SelectItem>
+                        <SelectItem value="online">Online</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="px-0">
-                <div className="overflow-auto max-h-[600px]">
+              <CardContent>
+                <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader className="sticky top-0 bg-white dark:bg-gray-900">
+                    <TableHeader>
                       <TableRow>
                         <TableHead>Transaction ID</TableHead>
                         <TableHead>Date</TableHead>
                         <TableHead>Customer</TableHead>
-                        <TableHead>Items</TableHead>
                         <TableHead className="text-right">Total</TableHead>
-                        <TableHead className="text-center">Actions</TableHead>
+                        <TableHead>Payment Method</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredTransactions.length > 0 ? (
-                        filteredTransactions.map((transaction) => (
-                          <TableRow key={transaction.id}>
-                            <TableCell className="font-medium">
-                              #{transaction.id}
-                            </TableCell>
-                            <TableCell>{transaction.date}</TableCell>
-                            <TableCell className="font-medium text-blue-600">
-                              {transaction.customer}
-                            </TableCell>
-                            <TableCell>{transaction.items}</TableCell>
-                            <TableCell className="text-right font-medium">
-                              {formatToRupees(transaction.total)}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <Button 
-                                variant="ghost" 
-                                size="icon"
-                                onClick={() => handleEditTransaction(transaction)}
-                              >
-                                <Edit size={16} className="text-blue-600" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8">
-                            <ClipboardList size={40} className="mx-auto text-gray-300 mb-2" />
-                            {customerSearch ? (
-                              <p className="text-muted-foreground">No transactions found for customer "{customerSearch}"</p>
-                            ) : (
-                              <p className="text-muted-foreground">No transaction records found for the selected time period</p>
-                            )}
-                          </TableCell>
+                      {data.allTransactions.slice(0, 10).map((transaction) => (
+                        <TableRow key={transaction.id}>
+                          <TableCell className="font-medium">#{transaction.id.substring(0, 8)}</TableCell>
+                          <TableCell>{transaction.date}</TableCell>
+                          <TableCell>{transaction.customer}</TableCell>
+                          <TableCell className="text-right">{formatToRupees(transaction.total)}</TableCell>
+                          <TableCell>{transaction.paymentMethod || "Cash"}</TableCell>
                         </TableRow>
-                      )}
+                      ))}
                     </TableBody>
                   </Table>
                 </div>
               </CardContent>
-              <CardFooter className="bg-gray-50/50 flex justify-between">
+              <CardFooter>
                 <div className="text-sm text-muted-foreground">
-                  {filteredTransactions.length} out of {reportData.allTransactions?.length || 0} transactions found
+                  Showing top 10 transactions. Export data for full list.
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="flex items-center gap-1" 
-                  onClick={handleExportTransactionData}
-                >
-                  <Download size={16} />
-                  <span>Export All Transactions</span>
-                </Button>
               </CardFooter>
             </Card>
           </TabsContent>
         </Tabs>
       </div>
-
-      {/* Edit Transaction Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Edit Transaction</DialogTitle>
-          </DialogHeader>
-          {currentTransaction && (
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="transaction-id" className="text-right">
-                  ID
-                </Label>
-                <Input
-                  id="transaction-id"
-                  value={currentTransaction.id}
-                  className="col-span-3"
-                  readOnly
-                  disabled
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="transaction-date" className="text-right">
-                  Date
-                </Label>
-                <Input
-                  id="transaction-date"
-                  value={currentTransaction.date}
-                  className="col-span-3"
-                  onChange={(e) => setCurrentTransaction({
-                    ...currentTransaction,
-                    date: e.target.value
-                  })}
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="transaction-customer" className="text-right">
-                  Customer
-                </Label>
-                <Input
-                  id="transaction-customer"
-                  value={currentTransaction.customer}
-                  className="col-span-3"
-                  onChange={(e) => setCurrentTransaction({
-                    ...currentTransaction,
-                    customer: e.target.value
-                  })}
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="transaction-items" className="text-right">
-                  Items
-                </Label>
-                <Input
-                  id="transaction-items"
-                  type="number"
-                  value={currentTransaction.items}
-                  className="col-span-3"
-                  onChange={(e) => setCurrentTransaction({
-                    ...currentTransaction,
-                    items: parseInt(e.target.value) || 0
-                  })}
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="transaction-total" className="text-right">
-                  Total
-                </Label>
-                <Input
-                  id="transaction-total"
-                  type="number"
-                  value={currentTransaction.total}
-                  className="col-span-3"
-                  onChange={(e) => setCurrentTransaction({
-                    ...currentTransaction,
-                    total: parseFloat(e.target.value) || 0
-                  })}
-                />
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveTransaction}>
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
   );
 };
