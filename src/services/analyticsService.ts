@@ -506,10 +506,7 @@ export const usePaymentMethodData = () => {
     try {
       const unsubscribe = onSnapshot(query(salesRef), (snapshot) => {
         // Process sales to extract payment method data
-        const paymentMethodMap: Record<string, number> = {
-          "Cash": 0,
-          "Online": 0
-        };
+        const paymentMethodMap: Record<string, number> = {};
         
         // Data for trends analysis
         const allDates: Record<string, {
@@ -521,8 +518,16 @@ export const usePaymentMethodData = () => {
         snapshot.forEach((doc) => {
           const data = doc.data();
           
-          // For payment method counts
-          const paymentMethod = data.paymentMethod || "Cash"; // Default to Cash if not specified
+          // For payment method counts - Normalize to capitalize first letter
+          let paymentMethod = data.paymentMethod || "Cash"; // Default to Cash if not specified
+          
+          // Normalize payment method to either "Cash" or "Online" regardless of case
+          if (paymentMethod.toLowerCase() === "cash") {
+            paymentMethod = "Cash";
+          } else if (paymentMethod.toLowerCase() === "online") {
+            paymentMethod = "Online";
+          }
+          
           paymentMethodMap[paymentMethod] = (paymentMethodMap[paymentMethod] || 0) + 1;
           
           // For trends over time

@@ -1,4 +1,3 @@
-
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
@@ -159,13 +158,16 @@ const Dashboard = () => {
         
         snapshot.forEach((doc) => {
           const data = doc.data();
-          const paymentMethod = data.paymentMethod || "Cash"; // Default to Cash if not specified
+          let paymentMethod = data.paymentMethod || "Cash"; // Default to Cash if not specified
           
-          if (paymentMethodCounts[paymentMethod] !== undefined) {
-            paymentMethodCounts[paymentMethod]++;
-          } else {
-            paymentMethodCounts[paymentMethod] = 1;
+          // Normalize payment method to either "Cash" or "Online" regardless of case
+          if (paymentMethod.toLowerCase() === "cash") {
+            paymentMethod = "Cash";
+          } else if (paymentMethod.toLowerCase() === "online") {
+            paymentMethod = "Online";
           }
+          
+          paymentMethodCounts[paymentMethod] = (paymentMethodCounts[paymentMethod] || 0) + 1;
         });
         
         // Convert to array for the chart
@@ -284,7 +286,7 @@ const Dashboard = () => {
                     <YAxis />
                     <Tooltip formatter={(value) => [formatToRupees(value as number), 'Revenue']} />
                     <Legend />
-                    <Bar dataKey="sales" fill="#0ea5e9" />
+                    <Bar dataKey="sales" fill="#0088FE" />
                   </BarChart>
                 </ResponsiveContainer>
               )}
