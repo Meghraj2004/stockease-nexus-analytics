@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ShoppingCart, Plus, Trash2, FileText, Mail, Send, Pencil, Search, ClipboardList, Download } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, FileText, Mail, Send, Pencil, Search, ClipboardList, Download, CreditCard, Wallet, IndianRupee } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { 
@@ -60,6 +59,16 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  Form, 
+  FormField, 
+  FormItem, 
+  FormLabel, 
+  FormControl, 
+  FormDescription, 
+  FormMessage 
+} from "@/components/ui/form";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface SaleItem {
   id: string;
@@ -73,6 +82,7 @@ interface Transaction {
   customerName: string;
   customerPhone?: string;
   customerEmail?: string;
+  paymentMethod?: string; // Add payment method to transaction data
   timestamp: Date;
   total: number;
   items: {
@@ -166,6 +176,11 @@ const Sales = () => {
     return () => unsubscribe();
   }, []);
 
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  
+  // UPI ID for online payments
+  const upiId = "megharajdandgavhal2004@okicici";
+
   const addItem = () => {
     if (!selectedItem) return;
     
@@ -211,6 +226,9 @@ const Sales = () => {
     setDiscount(transaction.discount.toString());
     setVatRate(transaction.vatRate.toString());
     
+    // Set payment method if available, otherwise default to cash
+    setPaymentMethod(transaction.paymentMethod || "cash");
+    
     // Map transaction items to sale items
     const saleItems: SaleItem[] = transaction.items.map(item => ({
       id: item.id,
@@ -238,6 +256,7 @@ const Sales = () => {
     setCustomerEmail("");
     setDiscount("0");
     setVatRate("18");
+    setPaymentMethod("cash");
   };
 
   // Save edited transaction
@@ -271,6 +290,7 @@ const Sales = () => {
         customerName: customerName || "Walk-in Customer",
         customerPhone: customerPhone || "",
         customerEmail: customerEmail || "",
+        paymentMethod: paymentMethod, // Include payment method in updated data
         items: items.map(item => ({
           id: item.id,
           name: item.name,
@@ -437,11 +457,12 @@ const Sales = () => {
           })
         );
         
-        // Create the sale document with customer contact info
+        // Create the sale document with customer contact info and payment method
         const saleData = {
           customerName: customerName || "Walk-in Customer",
           customerPhone: customerPhone || "",
           customerEmail: customerEmail || "",
+          paymentMethod: paymentMethod, // Add payment method to transaction data
           items: items.map(item => ({
             id: item.id,
             name: item.name,
@@ -482,6 +503,7 @@ const Sales = () => {
         customerName: customerName || "Walk-in Customer",
         customerPhone: customerPhone || "",
         customerEmail: customerEmail || "",
+        paymentMethod: paymentMethod, // Include payment method in PDF data
         items: items.map(item => ({
           id: item.id,
           name: item.name,
@@ -514,12 +536,13 @@ const Sales = () => {
         description: `Sale of ${formatToRupees(total)} has been processed successfully and inventory has been updated.`,
       });
       
-      // Reset form
+      // Reset form including payment method
       setItems([]);
       setCustomerName("");
       setCustomerPhone("");
       setCustomerEmail("");
       setDiscount("0");
+      setPaymentMethod("cash");
     } catch (error: any) {
       console.error("Error processing sale:", error);
       toast({
@@ -969,6 +992,7 @@ const Sales = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Customer Details */}
                 <div className="space-y-2">
                   <Label htmlFor="customer">Customer Name</Label>
                   <Input
@@ -1001,6 +1025,51 @@ const Sales = () => {
                   />
                   <p className="text-xs text-muted-foreground">For email invoice delivery</p>
                 </div>
+
+                {/* Payment Method Selection */}
+                <div className="space-y-3 pt-2">
+                  <Label>Payment Method</Label>
+                  <RadioGroup
+                    value={paymentMethod}
+                    onValueChange={setPaymentMethod}
+                    className="flex space-x-4"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="cash" id="cash" />
+                      <Label htmlFor="cash" className="flex items-center">
+                        <Wallet className="mr-2 h-4 w-4" />
+                        Cash
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="online" id="online" />
+                      <Label htmlFor="online" className="flex items-center">
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        Online
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {/* Online Payment QR Code Display */}
+                {paymentMethod === "online" && (
+                  <div className="mt-4 p-4 border rounded-lg bg-slate-50 dark:bg-slate-900">
+                    <div className="flex flex-col items-center">
+                      <img 
+                        src="/lovable-uploads/6e46d40b-d83d-4d46-bc29-df6b1f071c18.png" 
+                        alt="UPI QR Code" 
+                        className="w-64 h-64 object-contain mb-4" 
+                      />
+                      <div className="flex items-center mb-1 text-sm font-medium">
+                        <IndianRupee className="h-4 w-4 mr-1" />
+                        <span>UPI ID: {upiId}</span>
+                      </div>
+                      <p className="text-xs text-center text-muted-foreground">
+                        Scan to pay with any UPI app
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="discount">Discount (%)</Label>

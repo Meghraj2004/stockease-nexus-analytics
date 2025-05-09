@@ -1,31 +1,29 @@
-
 export interface InventoryItem {
   id: string;
   name: string;
-  sku: string;
-  category: string;
+  description: string;
   price: number;
-  costPrice: number;
   quantity: number;
-  reorderLevel: number;
-  description?: string;
-  imageUrl?: string;
-  createdAt: Date | string;
-  updatedAt: Date | string;
+  imageUrl: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-// Helper function for rupee formatting
-export const formatToRupees = (amount: number): string => {
+export const formatToRupees = (amount: number) => {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 2
+    currency: 'INR'
   }).format(amount);
 };
 
-export interface SaleTransaction {
+export interface Transaction {
   id: string;
   customerName: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  paymentMethod?: string;  // Add payment method field
+  timestamp: Date;
+  total: number;
   items: {
     id: string;
     name: string;
@@ -38,7 +36,4 @@ export interface SaleTransaction {
   discountAmount: number;
   vatRate: number;
   vatAmount: number;
-  total: number;
-  timestamp: Date;
-  createdBy: string;
 }
