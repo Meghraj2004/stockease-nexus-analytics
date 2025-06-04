@@ -28,7 +28,11 @@ import {
   FileText, 
   Settings, 
   Home, 
-  LogOut
+  LogOut,
+  AlertTriangle,
+  Building,
+  Tag,
+  TrendingUp
 } from 'lucide-react';
 import { useIsMobile, useSwipeGesture } from '@/hooks/use-mobile';
 
@@ -136,6 +140,59 @@ export default function AppSidebar() {
                 >
                   <FileText className="h-5 w-5 mr-2" />
                   <span>Reports</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Inventory Management</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  onClick={() => handleNavigation('/purchase-orders')}
+                  className="flex items-center"
+                >
+                  <FileText className="h-5 w-5 mr-2" />
+                  <span>Purchase Orders</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  onClick={() => handleNavigation('/stock-alerts')}
+                  className="flex items-center"
+                >
+                  <AlertTriangle className="h-5 w-5 mr-2" />
+                  <span>Stock Alerts</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  onClick={() => handleNavigation('/suppliers')}
+                  className="flex items-center"
+                >
+                  <Building className="h-5 w-5 mr-2" />
+                  <span>Suppliers</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  onClick={() => handleNavigation('/categories')}
+                  className="flex items-center"
+                >
+                  <Tag className="h-5 w-5 mr-2" />
+                  <span>Categories</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  onClick={() => handleNavigation('/stock-movement')}
+                  className="flex items-center"
+                >
+                  <TrendingUp className="h-5 w-5 mr-2" />
+                  <span>Stock Movement</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

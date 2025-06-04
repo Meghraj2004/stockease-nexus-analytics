@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,8 +19,16 @@ import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
+// New Inventory Management Pages
+import PurchaseOrders from "./pages/PurchaseOrders";
+import StockAlerts from "./pages/StockAlerts";
+import Suppliers from "./pages/Suppliers";
+import Categories from "./pages/Categories";
+import StockMovement from "./pages/StockMovement";
+
 // Protected Routes
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminRoute from "./components/AdminRoute";
 
 const queryClient = new QueryClient();
 
@@ -71,28 +80,72 @@ function App() {
                     </ProtectedRoute>
                   } 
                 />
+                
+                {/* New Inventory Management Routes */}
+                <Route 
+                  path="/purchase-orders" 
+                  element={
+                    <ProtectedRoute>
+                      <PurchaseOrders />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/stock-alerts" 
+                  element={
+                    <ProtectedRoute>
+                      <StockAlerts />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/suppliers" 
+                  element={
+                    <ProtectedRoute>
+                      <Suppliers />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/categories" 
+                  element={
+                    <ProtectedRoute>
+                      <Categories />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/stock-movement" 
+                  element={
+                    <ProtectedRoute>
+                      <StockMovement />
+                    </ProtectedRoute>
+                  } 
+                />
+                
+                {/* Admin Routes */}
                 <Route 
                   path="/users" 
                   element={
-                    <ProtectedRoute>
+                    <AdminRoute>
                       <Users />
-                    </ProtectedRoute>
+                    </AdminRoute>
                   } 
                 />
                 <Route 
                   path="/analytics" 
                   element={
-                    <ProtectedRoute>
+                    <AdminRoute>
                       <Analytics />
-                    </ProtectedRoute>
+                    </AdminRoute>
                   } 
                 />
                 <Route 
                   path="/settings" 
                   element={
-                    <ProtectedRoute>
+                    <AdminRoute>
                       <Settings />
-                    </ProtectedRoute>
+                    </AdminRoute>
                   } 
                 />
                 
