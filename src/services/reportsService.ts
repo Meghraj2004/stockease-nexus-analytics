@@ -132,7 +132,7 @@ export const useSalesReportData = (timeRange: string) => {
     // Process top products data
     const productSales: Record<string, number> = {};
     
-    // Process payment methods data
+    // Process payment methods data - Initialize with proper case
     const paymentMethods: Record<string, { count: number, revenue: number }> = {
       "Cash": { count: 0, revenue: 0 },
       "Online": { count: 0, revenue: 0 }
@@ -161,13 +161,20 @@ export const useSalesReportData = (timeRange: string) => {
       // For total sales
       totalSales += sale.total || 0;
       
-      // For payment methods
-      const paymentMethod = sale.paymentMethod || "Cash"; // Default to Cash if not specified
-      if (!paymentMethods[paymentMethod]) {
-        paymentMethods[paymentMethod] = { count: 0, revenue: 0 };
+      // For payment methods - NORMALIZE to proper case
+      let normalizedPaymentMethod = "Cash"; // Default to Cash
+      if (sale.paymentMethod) {
+        const method = sale.paymentMethod.toString().toLowerCase().trim();
+        if (method === "online" || method === "card" || method === "digital") {
+          normalizedPaymentMethod = "Online";
+        } else {
+          normalizedPaymentMethod = "Cash";
+        }
       }
-      paymentMethods[paymentMethod].count += 1;
-      paymentMethods[paymentMethod].revenue += sale.total || 0;
+      
+      // Add to payment method counts
+      paymentMethods[normalizedPaymentMethod].count += 1;
+      paymentMethods[normalizedPaymentMethod].revenue += sale.total || 0;
       
       // For product sales
       if (sale.items && Array.isArray(sale.items)) {
@@ -186,13 +193,12 @@ export const useSalesReportData = (timeRange: string) => {
       const transaction = {
         id: doc.id,
         date: date ? date.toISOString().split('T')[0] : '',
-        // Use customerName property for consistent naming and handling
         customer: sale.customerName && typeof sale.customerName === 'string' && sale.customerName.trim() !== '' 
           ? sale.customerName 
           : 'Guest',
         items: sale.items?.length || 0,
         total: sale.total || 0,
-        paymentMethod: sale.paymentMethod || "Cash", // Add payment method to transaction
+        paymentMethod: normalizedPaymentMethod, // Use normalized payment method
       };
       
       // For recent transactions (only first 5)
@@ -217,21 +223,31 @@ export const useSalesReportData = (timeRange: string) => {
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
       
-    // Format payment methods data for chart
-    const paymentMethodData = Object.keys(paymentMethods).map(method => ({
-      name: method,
-      value: paymentMethods[method].count
-    }));
+    // Format payment methods data for chart - Only Cash and Online
+    const paymentMethodData = [
+      { name: "Cash", value: paymentMethods["Cash"].count },
+      { name: "Online", value: paymentMethods["Online"].count }
+    ];
     
-    // Create payment method metrics
-    const paymentMethodMetrics: PaymentMethodMetric[] = Object.keys(paymentMethods).map(method => ({
-      method,
-      count: paymentMethods[method].count,
-      revenue: paymentMethods[method].revenue,
-      averageOrderValue: paymentMethods[method].count > 0 
-        ? paymentMethods[method].revenue / paymentMethods[method].count
-        : 0
-    }));
+    // Create payment method metrics - Only Cash and Online
+    const paymentMethodMetrics: PaymentMethodMetric[] = [
+      {
+        method: "Cash",
+        count: paymentMethods["Cash"].count,
+        revenue: paymentMethods["Cash"].revenue,
+        averageOrderValue: paymentMethods["Cash"].count > 0 
+          ? paymentMethods["Cash"].revenue / paymentMethods["Cash"].count
+          : 0
+      },
+      {
+        method: "Online",
+        count: paymentMethods["Online"].count,
+        revenue: paymentMethods["Online"].revenue,
+        averageOrderValue: paymentMethods["Online"].count > 0 
+          ? paymentMethods["Online"].revenue / paymentMethods["Online"].count
+          : 0
+      }
+    ];
     
     // Calculate summary data
     const averageSale = transactionCount > 0 ? totalSales / transactionCount : 0;
