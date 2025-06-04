@@ -1,3 +1,4 @@
+
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy, limit, where, Timestamp, getDocs, doc, updateDoc } from "firebase/firestore";
 import { useState, useEffect } from "react";
@@ -60,6 +61,7 @@ export const useSalesReportData = (timeRange: string) => {
 
   useEffect(() => {
     setIsLoading(true);
+    setError(null);
     
     // Calculate date range based on selected time period
     const now = new Date();
@@ -85,34 +87,66 @@ export const useSalesReportData = (timeRange: string) => {
         startDate.setMonth(now.getMonth() - 1);
     }
 
-    // Real-time listener for sales data
+    // Real-time listener for ALL sales data (no limit)
     const salesRef = collection(db, "sales");
-    const salesQuery = query(
-      salesRef,
-      where("timestamp", ">=", Timestamp.fromDate(startDate)),
-      where("timestamp", "<=", Timestamp.fromDate(now)),
-      orderBy("timestamp", "desc")
-    );
+    let salesQuery;
+    
+    if (timeRange === 'all') {
+      // For 'all' time range, get all transactions without date filter
+      salesQuery = query(salesRef, orderBy("timestamp", "desc"));
+    } else {
+      // For specific time ranges, filter by date
+      salesQuery = query(
+        salesRef,
+        where("timestamp", ">=", Timestamp.fromDate(startDate)),
+        where("timestamp", "<=", Timestamp.fromDate(now)),
+        orderBy("timestamp", "desc")
+      );
+    }
+    
+    console.log(`Setting up listener for ${timeRange} sales data from ${startDate.toLocaleDateString()} to ${now.toLocaleDateString()}`);
     
     try {
-      // Set up real-time listener for sales data
+      // Set up real-time listener for ALL sales data
       const unsubscribe = onSnapshot(salesQuery, (snapshot) => {
+        console.log(`Retrieved ${snapshot.docs.length} transactions from Firebase`);
+        
         if (snapshot.empty) {
-          // If no data, provide sample data
-          provideDefaultData();
+          console.log("No transactions found in Firebase");
+          // If no data, set empty data but don't fall back to sample data
+          setData({
+            monthlySalesData: [],
+            topProducts: [],
+            recentTransactions: [],
+            allTransactions: [],
+            paymentMethodData: [
+              { name: "Cash", value: 0 },
+              { name: "Online", value: 0 }
+            ],
+            paymentMethodMetrics: [
+              { method: "Cash", count: 0, revenue: 0, averageOrderValue: 0 },
+              { method: "Online", count: 0, revenue: 0, averageOrderValue: 0 }
+            ],
+            summary: {
+              totalSales: 0,
+              transactions: 0,
+              averageSale: 0,
+              profitMargin: 0
+            }
+          });
           setIsLoading(false);
           return;
         }
         
-        // Process sales data
+        // Process ALL sales data from Firebase
         const processedData = processSalesData(snapshot.docs);
+        console.log(`Processed data with ${processedData.allTransactions.length} total transactions`);
         setData(processedData);
         setIsLoading(false);
       }, (err) => {
         console.error("Error in sales report listener:", err);
         setError(err.message);
         setIsLoading(false);
-        provideDefaultData();
       });
       
       return () => unsubscribe();
@@ -120,12 +154,13 @@ export const useSalesReportData = (timeRange: string) => {
       console.error("Error setting up sales report listeners:", err);
       setError(err.message);
       setIsLoading(false);
-      provideDefaultData();
     }
   }, [timeRange]);
 
   // Helper function to process sales data
   const processSalesData = (docs: any[]) => {
+    console.log(`Processing ${docs.length} documents from Firebase`);
+    
     // Process monthly sales data
     const monthlySales: Record<string, number> = {};
     
@@ -138,10 +173,8 @@ export const useSalesReportData = (timeRange: string) => {
       "Online": { count: 0, revenue: 0 }
     };
     
-    // Process transactions
-    const recentTransactions: Transaction[] = [];
+    // Process ALL transactions
     const allTransactions: Transaction[] = [];
-    
     let totalSales = 0;
     const transactionCount = docs.length;
     
@@ -149,7 +182,10 @@ export const useSalesReportData = (timeRange: string) => {
       const sale = doc.data();
       const date = sale.timestamp?.toDate();
       
-      if (!date) return;
+      if (!date) {
+        console.warn(`Transaction ${doc.id} has no timestamp, skipping`);
+        return;
+      }
       
       // For monthly sales
       const monthName = date.toLocaleString('default', { month: 'short' });
@@ -185,11 +221,11 @@ export const useSalesReportData = (timeRange: string) => {
             productSales[item.name] = 0;
           }
           
-          productSales[item.name] += item.total || 0;
+          productSales[item.name] += item.total || (item.price * item.quantity) || 0;
         });
       }
       
-      // Create transaction object for both recent and all transactions
+      // Create transaction object for ALL transactions
       const transaction = {
         id: doc.id,
         date: date ? date.toISOString().split('T')[0] : '',
@@ -198,17 +234,14 @@ export const useSalesReportData = (timeRange: string) => {
           : 'Guest',
         items: sale.items?.length || 0,
         total: sale.total || 0,
-        paymentMethod: normalizedPaymentMethod, // Use normalized payment method
+        paymentMethod: normalizedPaymentMethod,
       };
       
-      // For recent transactions (only first 5)
-      if (index < 5) {
-        recentTransactions.push(transaction);
-      }
-      
-      // For all transactions
+      // Add to all transactions
       allTransactions.push(transaction);
     });
+    
+    console.log(`Processed ${allTransactions.length} transactions, total sales: ${formatToRupees(totalSales)}`);
     
     // Format monthly sales for chart
     const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -252,11 +285,16 @@ export const useSalesReportData = (timeRange: string) => {
     // Calculate summary data
     const averageSale = transactionCount > 0 ? totalSales / transactionCount : 0;
     
+    // Get recent transactions (first 5 from all transactions)
+    const recentTransactions = allTransactions.slice(0, 5);
+    
+    console.log(`Final data: ${allTransactions.length} total transactions, ${recentTransactions.length} recent transactions`);
+    
     return {
       monthlySalesData,
       topProducts,
       recentTransactions,
-      allTransactions,
+      allTransactions, // This now contains ALL transactions from Firebase
       paymentMethodData,
       paymentMethodMetrics,
       summary: {
