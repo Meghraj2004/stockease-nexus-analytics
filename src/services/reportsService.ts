@@ -903,10 +903,10 @@ export const useSalesReportData = (timeRange: string) => {
       
       XLSX.utils.book_append_sheet(wb, sheet, "Payment Methods");
       
-      // Create detailed transactions sheet by payment method
+      // Create detailed transactions sheet by payment method - USING ALL TRANSACTIONS
       const transactionsHeader = [
         ...headerData,
-        ["Transactions by Payment Method"],
+        ["ALL Transactions by Payment Method"],
         [],
         ["Transaction ID", "Date", "Customer", "Items", "Total Value", "Payment Method"]
       ];
@@ -923,6 +923,22 @@ export const useSalesReportData = (timeRange: string) => {
         ])
       ];
       
+      // Add summary by payment method at the end
+      const cashTransactions = data.allTransactions.filter(t => (t.paymentMethod || "Cash") === "Cash");
+      const onlineTransactions = data.allTransactions.filter(t => (t.paymentMethod || "Cash") === "Online");
+      
+      const cashTotal = cashTransactions.reduce((sum, t) => sum + t.total, 0);
+      const onlineTotal = onlineTransactions.reduce((sum, t) => sum + t.total, 0);
+      
+      transactionsData.push(
+        [],
+        ["PAYMENT METHOD SUMMARY", "", "", "", "", ""],
+        ["Cash Transactions", cashTransactions.length.toString(), "", "", formatToRupees(cashTotal), "Cash"],
+        ["Online Transactions", onlineTransactions.length.toString(), "", "", formatToRupees(onlineTotal), "Online"],
+        [],
+        ["Total All Transactions", data.allTransactions.length.toString(), "", "", formatToRupees(cashTotal + onlineTotal), ""]
+      );
+      
       const transSheet = XLSX.utils.aoa_to_sheet(transactionsData);
       
       // Set column widths for better readability
@@ -935,13 +951,13 @@ export const useSalesReportData = (timeRange: string) => {
         { wch: 15 }, // Payment Method
       ];
       
-      XLSX.utils.book_append_sheet(wb, transSheet, "Transactions by Payment");
+      XLSX.utils.book_append_sheet(wb, transSheet, "All Transactions by Payment");
       
       // Generate file with specific name for payment method report
-      const fileName = `payment-methods-report-${timeRange}-${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = `payment-methods-all-transactions-${timeRange}-${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
       
-      console.log(`Successfully exported payment method report to ${fileName}`);
+      console.log(`Successfully exported all transactions payment method report to ${fileName}`);
       return true;
     } catch (err) {
       console.error("Error generating payment method report:", err);
