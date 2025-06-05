@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -30,8 +29,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { Plus, Search, Edit2, Building } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { Plus, Search, Edit2, Building, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { db, auth } from "@/lib/firebase";
 import { 
   collection, 
   addDoc, 
@@ -42,6 +42,7 @@ import {
   orderBy, 
   onSnapshot 
 } from "firebase/firestore";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 interface Supplier {
   id: string;
@@ -59,12 +60,14 @@ interface Supplier {
 }
 
 const Suppliers = () => {
+  const [user, loading, authError] = useAuthState(auth);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [newSupplier, setNewSupplier] = useState<Partial<Supplier>>({
     name: "",
     contactPerson: "",
@@ -78,7 +81,16 @@ const Suppliers = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    console.log("Suppliers: Setting up real-time listener");
+    if (loading) return; // Wait for auth to load
+    
+    if (!user) {
+      setError("You must be logged in to view suppliers.");
+      setIsLoading(false);
+      return;
+    }
+
+    console.log("Suppliers: Setting up real-time listener for user:", user.uid);
+    setError(null);
     
     const q = query(collection(db, "suppliers"), orderBy("createdAt", "desc"));
     
@@ -111,12 +123,22 @@ const Suppliers = () => {
         console.log("Suppliers: Total suppliers loaded:", fetchedSuppliers.length);
         setSuppliers(fetchedSuppliers);
         setIsLoading(false);
+        setError(null);
       }, 
       (error) => {
         console.error("Suppliers: Error fetching suppliers:", error);
+        let errorMessage = "Failed to load suppliers.";
+        
+        if (error.code === 'permission-denied') {
+          errorMessage = "Access denied. Please check your permissions or contact an administrator.";
+        } else if (error.code === 'unavailable') {
+          errorMessage = "Service temporarily unavailable. Please try again later.";
+        }
+        
+        setError(errorMessage);
         toast({
           title: "Error",
-          description: "Failed to load suppliers. Please check your connection.",
+          description: errorMessage,
           variant: "destructive",
         });
         setIsLoading(false);
@@ -127,7 +149,7 @@ const Suppliers = () => {
       console.log("Suppliers: Cleaning up listener");
       unsubscribe();
     };
-  }, [toast]);
+  }, [user, loading, toast]);
 
   const resetNewSupplier = () => {
     setNewSupplier({
@@ -142,6 +164,15 @@ const Suppliers = () => {
   };
 
   const handleAddSupplier = async () => {
+    if (!user) {
+      toast({
+        title: "Authentication Error",
+        description: "You must be logged in to add suppliers.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Validation
     if (!newSupplier.name?.trim()) {
       toast({
@@ -190,6 +221,7 @@ const Suppliers = () => {
         totalAmount: 0,
         createdAt: currentTime,
         updatedAt: currentTime,
+        userId: user.uid, // Add user ID for security
       };
 
       const docRef = await addDoc(collection(db, "suppliers"), supplierData);
@@ -203,11 +235,17 @@ const Suppliers = () => {
         title: "Success",
         description: "Supplier has been added successfully.",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Suppliers: Error adding supplier:", error);
+      let errorMessage = "Failed to add supplier. Please try again.";
+      
+      if (error.code === 'permission-denied') {
+        errorMessage = "Permission denied. You don't have access to add suppliers.";
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to add supplier. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -216,7 +254,7 @@ const Suppliers = () => {
   };
 
   const handleEditSupplier = async () => {
-    if (!editSupplier) return;
+    if (!editSupplier || !user) return;
 
     // Validation
     if (!editSupplier.name?.trim()) {
@@ -276,11 +314,17 @@ const Suppliers = () => {
         title: "Success",
         description: "Supplier has been updated successfully.",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Suppliers: Error updating supplier:", error);
+      let errorMessage = "Failed to update supplier. Please try again.";
+      
+      if (error.code === 'permission-denied') {
+        errorMessage = "Permission denied. You don't have access to update suppliers.";
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to update supplier. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -300,11 +344,42 @@ const Suppliers = () => {
       supplier.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+          <span className="ml-2">Loading...</span>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (authError || (!user && !loading)) {
+    return (
+      <DashboardLayout>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Authentication required. Please log in to access the suppliers page.
+          </AlertDescription>
+        </Alert>
+      </DashboardLayout>
+    );
+  }
+
   console.log("Suppliers: Rendering with", suppliers.length, "suppliers");
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         <div>
           <h1 className="text-3xl font-bold">Suppliers</h1>
           <p className="text-muted-foreground">
@@ -361,7 +436,7 @@ const Suppliers = () => {
 
           <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="w-full md:w-auto">
+              <Button className="w-full md:w-auto" disabled={!user}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Supplier
               </Button>
