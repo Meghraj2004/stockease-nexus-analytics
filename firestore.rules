@@ -2,23 +2,21 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow authenticated users to read and write inventory data
+    // Users can read/write their own user document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow authenticated users to read/write inventory, sales, suppliers
     match /inventory/{document} {
       allow read, write: if request.auth != null;
     }
     
-    // Allow authenticated users to read and write suppliers data
-    match /suppliers/{document} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // Allow authenticated users to read and write users data
-    match /users/{document} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // Allow authenticated users to read and write sales data
     match /sales/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /suppliers/{document} {
       allow read, write: if request.auth != null;
     }
   }
