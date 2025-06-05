@@ -22,6 +22,13 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { Plus, Search, Edit2, Building } from "lucide-react";
 import { db } from "@/lib/firebase";
@@ -57,6 +64,7 @@ const Suppliers = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newSupplier, setNewSupplier] = useState<Partial<Supplier>>({
     name: "",
     contactPerson: "",
@@ -65,8 +73,6 @@ const Suppliers = () => {
     address: "",
     paymentTerms: "Net 30",
     status: "active",
-    totalOrders: 0,
-    totalAmount: 0,
   });
   const [editSupplier, setEditSupplier] = useState<Supplier | null>(null);
   const { toast } = useToast();
@@ -110,7 +116,7 @@ const Suppliers = () => {
         console.error("Suppliers: Error fetching suppliers:", error);
         toast({
           title: "Error",
-          description: "Failed to load suppliers. Check console for details.",
+          description: "Failed to load suppliers. Please check your connection.",
           variant: "destructive",
         });
         setIsLoading(false);
@@ -123,104 +129,162 @@ const Suppliers = () => {
     };
   }, [toast]);
 
+  const resetNewSupplier = () => {
+    setNewSupplier({
+      name: "",
+      contactPerson: "",
+      email: "",
+      phone: "",
+      address: "",
+      paymentTerms: "Net 30",
+      status: "active",
+    });
+  };
+
   const handleAddSupplier = async () => {
-    if (!newSupplier.name || !newSupplier.contactPerson) {
+    // Validation
+    if (!newSupplier.name?.trim()) {
       toast({
         title: "Validation Error",
-        description: "Please fill in at least the name and contact person.",
+        description: "Supplier name is required.",
         variant: "destructive",
       });
       return;
     }
 
+    if (!newSupplier.contactPerson?.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Contact person is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Email validation if provided
+    if (newSupplier.email && newSupplier.email.trim() && 
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newSupplier.email.trim())) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
     try {
       console.log("Suppliers: Adding new supplier", newSupplier);
       const currentTime = Timestamp.now();
       
-      const docRef = await addDoc(collection(db, "suppliers"), {
-        name: newSupplier.name,
-        contactPerson: newSupplier.contactPerson,
-        email: newSupplier.email || '',
-        phone: newSupplier.phone || '',
-        address: newSupplier.address || '',
+      const supplierData = {
+        name: newSupplier.name.trim(),
+        contactPerson: newSupplier.contactPerson.trim(),
+        email: newSupplier.email?.trim() || '',
+        phone: newSupplier.phone?.trim() || '',
+        address: newSupplier.address?.trim() || '',
         paymentTerms: newSupplier.paymentTerms || 'Net 30',
         status: newSupplier.status || 'active',
         totalOrders: 0,
         totalAmount: 0,
         createdAt: currentTime,
         updatedAt: currentTime,
-      });
+      };
+
+      const docRef = await addDoc(collection(db, "suppliers"), supplierData);
       
       console.log("Suppliers: Successfully added supplier with ID:", docRef.id);
       
-      setNewSupplier({
-        name: "",
-        contactPerson: "",
-        email: "",
-        phone: "",
-        address: "",
-        paymentTerms: "Net 30",
-        status: "active",
-        totalOrders: 0,
-        totalAmount: 0,
-      });
-      
+      resetNewSupplier();
       setAddDialogOpen(false);
       
       toast({
-        title: "Supplier Added",
-        description: "The supplier has been added successfully.",
+        title: "Success",
+        description: "Supplier has been added successfully.",
       });
     } catch (error) {
       console.error("Suppliers: Error adding supplier:", error);
       toast({
         title: "Error",
-        description: "Failed to add supplier. Check console for details.",
+        description: "Failed to add supplier. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleEditSupplier = async () => {
-    if (!editSupplier || !editSupplier.name || !editSupplier.contactPerson) {
+    if (!editSupplier) return;
+
+    // Validation
+    if (!editSupplier.name?.trim()) {
       toast({
         title: "Validation Error",
-        description: "Please fill in at least the name and contact person.",
+        description: "Supplier name is required.",
         variant: "destructive",
       });
       return;
     }
+
+    if (!editSupplier.contactPerson?.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Contact person is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Email validation if provided
+    if (editSupplier.email && editSupplier.email.trim() && 
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editSupplier.email.trim())) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       console.log("Suppliers: Updating supplier", editSupplier.id, editSupplier);
       const supplierRef = doc(db, "suppliers", editSupplier.id);
       const currentTime = Timestamp.now();
       
-      await updateDoc(supplierRef, {
-        name: editSupplier.name,
-        contactPerson: editSupplier.contactPerson,
-        email: editSupplier.email,
-        phone: editSupplier.phone,
-        address: editSupplier.address,
+      const updateData = {
+        name: editSupplier.name.trim(),
+        contactPerson: editSupplier.contactPerson.trim(),
+        email: editSupplier.email?.trim() || '',
+        phone: editSupplier.phone?.trim() || '',
+        address: editSupplier.address?.trim() || '',
         paymentTerms: editSupplier.paymentTerms,
         status: editSupplier.status,
         updatedAt: currentTime,
-      });
+      };
+
+      await updateDoc(supplierRef, updateData);
       
       console.log("Suppliers: Successfully updated supplier");
       setEditDialogOpen(false);
+      setEditSupplier(null);
       
       toast({
-        title: "Supplier Updated",
-        description: "The supplier has been updated successfully.",
+        title: "Success",
+        description: "Supplier has been updated successfully.",
       });
     } catch (error) {
       console.error("Suppliers: Error updating supplier:", error);
       toast({
         title: "Error",
-        description: "Failed to update supplier. Check console for details.",
+        description: "Failed to update supplier. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -316,10 +380,10 @@ const Suppliers = () => {
                   </Label>
                   <Input
                     id="name"
-                    value={newSupplier.name}
+                    value={newSupplier.name || ""}
                     onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
                     className="col-span-3"
-                    required
+                    placeholder="Enter supplier name"
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -328,10 +392,10 @@ const Suppliers = () => {
                   </Label>
                   <Input
                     id="contactPerson"
-                    value={newSupplier.contactPerson}
+                    value={newSupplier.contactPerson || ""}
                     onChange={(e) => setNewSupplier({ ...newSupplier, contactPerson: e.target.value })}
                     className="col-span-3"
-                    required
+                    placeholder="Enter contact person"
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -341,9 +405,10 @@ const Suppliers = () => {
                   <Input
                     id="email"
                     type="email"
-                    value={newSupplier.email}
+                    value={newSupplier.email || ""}
                     onChange={(e) => setNewSupplier({ ...newSupplier, email: e.target.value })}
                     className="col-span-3"
+                    placeholder="Enter email address"
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -352,9 +417,10 @@ const Suppliers = () => {
                   </Label>
                   <Input
                     id="phone"
-                    value={newSupplier.phone}
+                    value={newSupplier.phone || ""}
                     onChange={(e) => setNewSupplier({ ...newSupplier, phone: e.target.value })}
                     className="col-span-3"
+                    placeholder="Enter phone number"
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -363,14 +429,47 @@ const Suppliers = () => {
                   </Label>
                   <Textarea
                     id="address"
-                    value={newSupplier.address}
+                    value={newSupplier.address || ""}
                     onChange={(e) => setNewSupplier({ ...newSupplier, address: e.target.value })}
                     className="col-span-3"
+                    placeholder="Enter address"
                   />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="paymentTerms" className="text-right">
+                    Payment Terms
+                  </Label>
+                  <Select
+                    value={newSupplier.paymentTerms || "Net 30"}
+                    onValueChange={(value) => setNewSupplier({ ...newSupplier, paymentTerms: value })}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select payment terms" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Net 30">Net 30</SelectItem>
+                      <SelectItem value="Net 15">Net 15</SelectItem>
+                      <SelectItem value="Net 7">Net 7</SelectItem>
+                      <SelectItem value="COD">Cash on Delivery</SelectItem>
+                      <SelectItem value="Prepaid">Prepaid</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={handleAddSupplier}>Add Supplier</Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setAddDialogOpen(false);
+                    resetNewSupplier();
+                  }}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleAddSupplier} disabled={isSubmitting}>
+                  {isSubmitting ? "Adding..." : "Add Supplier"}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -384,8 +483,8 @@ const Suppliers = () => {
                 <TableHead>Contact Person</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
+                <TableHead>Payment Terms</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Total Orders</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -404,7 +503,7 @@ const Suppliers = () => {
                     <div className="flex flex-col items-center justify-center text-muted-foreground">
                       <Building className="h-12 w-12 mb-2" />
                       <h3 className="text-lg font-medium">No suppliers found</h3>
-                      <p>Add your first supplier to get started.</p>
+                      <p>{searchTerm ? "Try adjusting your search terms." : "Add your first supplier to get started."}</p>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -413,8 +512,9 @@ const Suppliers = () => {
                   <TableRow key={supplier.id}>
                     <TableCell className="font-medium">{supplier.name}</TableCell>
                     <TableCell>{supplier.contactPerson}</TableCell>
-                    <TableCell>{supplier.email}</TableCell>
-                    <TableCell>{supplier.phone}</TableCell>
+                    <TableCell>{supplier.email || '-'}</TableCell>
+                    <TableCell>{supplier.phone || '-'}</TableCell>
+                    <TableCell>{supplier.paymentTerms}</TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         supplier.status === 'active' 
@@ -424,14 +524,13 @@ const Suppliers = () => {
                         {supplier.status}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right">{supplier.totalOrders}</TableCell>
                     <TableCell className="text-right">
                       <Button 
                         variant="ghost" 
                         size="sm"
                         onClick={() => openEditDialog(supplier)}
                       >
-                        <Edit2 className="h-4 w-4 mr-1" /> Edit
+                        <Edit2 className="h-4 w-4" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -462,7 +561,6 @@ const Suppliers = () => {
                   value={editSupplier.name}
                   onChange={(e) => setEditSupplier({ ...editSupplier, name: e.target.value })}
                   className="col-span-3"
-                  required
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -474,7 +572,6 @@ const Suppliers = () => {
                   value={editSupplier.contactPerson}
                   onChange={(e) => setEditSupplier({ ...editSupplier, contactPerson: e.target.value })}
                   className="col-span-3"
-                  required
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -511,10 +608,59 @@ const Suppliers = () => {
                   className="col-span-3"
                 />
               </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-paymentTerms" className="text-right">
+                  Payment Terms
+                </Label>
+                <Select
+                  value={editSupplier.paymentTerms}
+                  onValueChange={(value) => setEditSupplier({ ...editSupplier, paymentTerms: value })}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Net 30">Net 30</SelectItem>
+                    <SelectItem value="Net 15">Net 15</SelectItem>
+                    <SelectItem value="Net 7">Net 7</SelectItem>
+                    <SelectItem value="COD">Cash on Delivery</SelectItem>
+                    <SelectItem value="Prepaid">Prepaid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-status" className="text-right">
+                  Status
+                </Label>
+                <Select
+                  value={editSupplier.status}
+                  onValueChange={(value: 'active' | 'inactive') => setEditSupplier({ ...editSupplier, status: value })}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           )}
           <DialogFooter>
-            <Button onClick={handleEditSupplier}>Update Supplier</Button>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setEditDialogOpen(false);
+                setEditSupplier(null);
+              }}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleEditSupplier} disabled={isSubmitting}>
+              {isSubmitting ? "Updating..." : "Update Supplier"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
