@@ -72,49 +72,86 @@ const Suppliers = () => {
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log("Suppliers: Setting up real-time listener");
+    
     const q = query(collection(db, "suppliers"), orderBy("createdAt", "desc"));
     
     const unsubscribe = onSnapshot(
       q, 
       (querySnapshot) => {
+        console.log("Suppliers: Received data", querySnapshot.size, "suppliers");
         const fetchedSuppliers: Supplier[] = [];
         
         querySnapshot.forEach((doc) => {
           const data = doc.data();
+          console.log("Suppliers: Processing supplier", doc.id, data);
+          
           fetchedSuppliers.push({
             id: doc.id,
-            ...data,
+            name: data.name || '',
+            contactPerson: data.contactPerson || '',
+            email: data.email || '',
+            phone: data.phone || '',
+            address: data.address || '',
+            paymentTerms: data.paymentTerms || 'Net 30',
+            status: data.status || 'active',
+            totalOrders: data.totalOrders || 0,
+            totalAmount: data.totalAmount || 0,
             createdAt: data.createdAt?.toDate() || new Date(),
             updatedAt: data.updatedAt?.toDate() || new Date(),
           } as Supplier);
         });
         
+        console.log("Suppliers: Total suppliers loaded:", fetchedSuppliers.length);
         setSuppliers(fetchedSuppliers);
         setIsLoading(false);
       }, 
       (error) => {
-        console.error("Error fetching suppliers:", error);
+        console.error("Suppliers: Error fetching suppliers:", error);
         toast({
           title: "Error",
-          description: "Failed to load suppliers.",
+          description: "Failed to load suppliers. Check console for details.",
           variant: "destructive",
         });
         setIsLoading(false);
       }
     );
     
-    return () => unsubscribe();
+    return () => {
+      console.log("Suppliers: Cleaning up listener");
+      unsubscribe();
+    };
   }, [toast]);
 
   const handleAddSupplier = async () => {
+    if (!newSupplier.name || !newSupplier.contactPerson) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in at least the name and contact person.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
+      console.log("Suppliers: Adding new supplier", newSupplier);
       const currentTime = Timestamp.now();
       
-      await addDoc(collection(db, "suppliers"), {
-        ...newSupplier,
+      const docRef = await addDoc(collection(db, "suppliers"), {
+        name: newSupplier.name,
+        contactPerson: newSupplier.contactPerson,
+        email: newSupplier.email || '',
+        phone: newSupplier.phone || '',
+        address: newSupplier.address || '',
+        paymentTerms: newSupplier.paymentTerms || 'Net 30',
+        status: newSupplier.status || 'active',
+        totalOrders: 0,
+        totalAmount: 0,
         createdAt: currentTime,
         updatedAt: currentTime,
       });
+      
+      console.log("Suppliers: Successfully added supplier with ID:", docRef.id);
       
       setNewSupplier({
         name: "",
@@ -135,19 +172,27 @@ const Suppliers = () => {
         description: "The supplier has been added successfully.",
       });
     } catch (error) {
-      console.error("Error adding supplier:", error);
+      console.error("Suppliers: Error adding supplier:", error);
       toast({
         title: "Error",
-        description: "Failed to add supplier.",
+        description: "Failed to add supplier. Check console for details.",
         variant: "destructive",
       });
     }
   };
 
   const handleEditSupplier = async () => {
-    if (!editSupplier) return;
+    if (!editSupplier || !editSupplier.name || !editSupplier.contactPerson) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in at least the name and contact person.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
+      console.log("Suppliers: Updating supplier", editSupplier.id, editSupplier);
       const supplierRef = doc(db, "suppliers", editSupplier.id);
       const currentTime = Timestamp.now();
       
@@ -162,6 +207,7 @@ const Suppliers = () => {
         updatedAt: currentTime,
       });
       
+      console.log("Suppliers: Successfully updated supplier");
       setEditDialogOpen(false);
       
       toast({
@@ -169,10 +215,10 @@ const Suppliers = () => {
         description: "The supplier has been updated successfully.",
       });
     } catch (error) {
-      console.error("Error updating supplier:", error);
+      console.error("Suppliers: Error updating supplier:", error);
       toast({
         title: "Error",
-        description: "Failed to update supplier.",
+        description: "Failed to update supplier. Check console for details.",
         variant: "destructive",
       });
     }
@@ -190,6 +236,8 @@ const Suppliers = () => {
       supplier.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  console.log("Suppliers: Rendering with", suppliers.length, "suppliers");
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -198,6 +246,42 @@ const Suppliers = () => {
           <p className="text-muted-foreground">
             Manage your supplier information and relationships
           </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <Building className="h-8 w-8 text-blue-600 mr-3" />
+              <div>
+                <h3 className="text-lg font-semibold text-blue-900">Total Suppliers</h3>
+                <p className="text-2xl font-bold text-blue-600">{suppliers.length}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <Building className="h-8 w-8 text-green-600 mr-3" />
+              <div>
+                <h3 className="text-lg font-semibold text-green-900">Active Suppliers</h3>
+                <p className="text-2xl font-bold text-green-600">
+                  {suppliers.filter(s => s.status === 'active').length}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <Building className="h-8 w-8 text-purple-600 mr-3" />
+              <div>
+                <h3 className="text-lg font-semibold text-purple-900">Total Orders</h3>
+                <p className="text-2xl font-bold text-purple-600">
+                  {suppliers.reduce((sum, s) => sum + s.totalOrders, 0)}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
@@ -228,24 +312,26 @@ const Suppliers = () => {
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="name" className="text-right">
-                    Name
+                    Name *
                   </Label>
                   <Input
                     id="name"
                     value={newSupplier.name}
                     onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
                     className="col-span-3"
+                    required
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="contactPerson" className="text-right">
-                    Contact
+                    Contact *
                   </Label>
                   <Input
                     id="contactPerson"
                     value={newSupplier.contactPerson}
                     onChange={(e) => setNewSupplier({ ...newSupplier, contactPerson: e.target.value })}
                     className="col-span-3"
+                    required
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -369,24 +455,26 @@ const Suppliers = () => {
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-name" className="text-right">
-                  Name
+                  Name *
                 </Label>
                 <Input
                   id="edit-name"
                   value={editSupplier.name}
                   onChange={(e) => setEditSupplier({ ...editSupplier, name: e.target.value })}
                   className="col-span-3"
+                  required
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-contactPerson" className="text-right">
-                  Contact
+                  Contact *
                 </Label>
                 <Input
                   id="edit-contactPerson"
                   value={editSupplier.contactPerson}
                   onChange={(e) => setEditSupplier({ ...editSupplier, contactPerson: e.target.value })}
                   className="col-span-3"
+                  required
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">

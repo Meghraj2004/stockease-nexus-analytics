@@ -19,12 +19,9 @@ import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
-// New Inventory Management Pages
-import PurchaseOrders from "./pages/PurchaseOrders";
+// Inventory Management Pages
 import StockAlerts from "./pages/StockAlerts";
 import Suppliers from "./pages/Suppliers";
-import Categories from "./pages/Categories";
-import StockMovement from "./pages/StockMovement";
 
 // Protected Routes
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -81,15 +78,7 @@ function App() {
                   } 
                 />
                 
-                {/* New Inventory Management Routes */}
-                <Route 
-                  path="/purchase-orders" 
-                  element={
-                    <ProtectedRoute>
-                      <PurchaseOrders />
-                    </ProtectedRoute>
-                  } 
-                />
+                {/* Inventory Management Routes */}
                 <Route 
                   path="/stock-alerts" 
                   element={
@@ -103,22 +92,6 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <Suppliers />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/categories" 
-                  element={
-                    <ProtectedRoute>
-                      <Categories />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/stock-movement" 
-                  element={
-                    <ProtectedRoute>
-                      <StockMovement />
                     </ProtectedRoute>
                   } 
                 />

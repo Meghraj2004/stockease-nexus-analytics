@@ -18,38 +18,31 @@ import { AlertTriangle, Search, Package, ShoppingCart } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { 
   collection, 
-  query, 
-  where,
-  onSnapshot 
+  onSnapshot,
+  query
 } from "firebase/firestore";
 
 const StockAlerts = () => {
-  const [lowStockItems, setLowStockItems] = useState<InventoryItem[]>([]);
-  const [outOfStockItems, setOutOfStockItems] = useState<InventoryItem[]>([]);
+  const [allItems, setAllItems] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
-    // Query for low stock items (quantity <= reorderLevel but > 0)
-    const lowStockQuery = query(
-      collection(db, "inventory"),
-      where("quantity", ">", 0)
-    );
+    console.log("StockAlerts: Setting up real-time listener for inventory");
+    
+    const q = query(collection(db, "inventory"));
 
-    // Query for out of stock items (quantity = 0)
-    const outOfStockQuery = query(
-      collection(db, "inventory"),
-      where("quantity", "==", 0)
-    );
-
-    const unsubscribeLowStock = onSnapshot(
-      lowStockQuery,
+    const unsubscribe = onSnapshot(
+      q,
       (querySnapshot) => {
+        console.log("StockAlerts: Received inventory data", querySnapshot.size, "items");
         const items: InventoryItem[] = [];
         
         querySnapshot.forEach((doc) => {
           const data = doc.data();
+          console.log("StockAlerts: Processing item", doc.id, data);
+          
           const item = {
             id: doc.id,
             ...data,
@@ -57,73 +50,52 @@ const StockAlerts = () => {
             updatedAt: data.updatedAt?.toDate() || new Date(),
           } as InventoryItem;
           
-          // Filter for items where quantity <= reorderLevel
-          if (item.quantity <= item.reorderLevel) {
-            items.push(item);
-          }
+          items.push(item);
         });
         
-        setLowStockItems(items);
+        console.log("StockAlerts: Total items loaded:", items.length);
+        setAllItems(items);
         setIsLoading(false);
       },
       (error) => {
-        console.error("Error fetching low stock items:", error);
+        console.error("StockAlerts: Error fetching inventory:", error);
         toast({
           title: "Error",
-          description: "Failed to load stock alerts.",
+          description: "Failed to load inventory data for stock alerts.",
           variant: "destructive",
         });
         setIsLoading(false);
-      }
-    );
-
-    const unsubscribeOutOfStock = onSnapshot(
-      outOfStockQuery,
-      (querySnapshot) => {
-        const items: InventoryItem[] = [];
-        
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          items.push({
-            id: doc.id,
-            ...data,
-            createdAt: data.createdAt?.toDate() || new Date(),
-            updatedAt: data.updatedAt?.toDate() || new Date(),
-          } as InventoryItem);
-        });
-        
-        setOutOfStockItems(items);
-      },
-      (error) => {
-        console.error("Error fetching out of stock items:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load out of stock items.",
-          variant: "destructive",
-        });
       }
     );
 
     return () => {
-      unsubscribeLowStock();
-      unsubscribeOutOfStock();
+      console.log("StockAlerts: Cleaning up listener");
+      unsubscribe();
     };
   }, [toast]);
 
-  const allAlerts = [...outOfStockItems, ...lowStockItems];
+  // Filter items for alerts (out of stock or low stock)
+  const alertItems = allItems.filter(item => {
+    const isOutOfStock = item.quantity === 0;
+    const isLowStock = item.quantity > 0 && item.quantity <= (item.reorderLevel || 10);
+    return isOutOfStock || isLowStock;
+  });
+
+  const outOfStockItems = alertItems.filter(item => item.quantity === 0);
+  const lowStockItems = alertItems.filter(item => item.quantity > 0 && item.quantity <= (item.reorderLevel || 10));
   
-  const filteredAlerts = allAlerts.filter(
+  const filteredAlerts = alertItems.filter(
     (item) =>
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchTerm.toLowerCase())
+      (item.category && item.category.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const getAlertBadge = (item: InventoryItem) => {
     if (item.quantity === 0) {
       return <Badge variant="destructive">Out of Stock</Badge>;
     }
-    if (item.quantity <= item.reorderLevel) {
+    if (item.quantity <= (item.reorderLevel || 10)) {
       return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Low Stock</Badge>;
     }
     return null;
@@ -131,7 +103,7 @@ const StockAlerts = () => {
 
   const getAlertPriority = (item: InventoryItem) => {
     if (item.quantity === 0) return "High";
-    if (item.quantity <= Math.ceil(item.reorderLevel * 0.5)) return "Medium";
+    if (item.quantity <= Math.ceil((item.reorderLevel || 10) * 0.5)) return "Medium";
     return "Low";
   };
 
@@ -144,13 +116,15 @@ const StockAlerts = () => {
     }
   };
 
+  console.log("StockAlerts: Rendering with", alertItems.length, "alert items");
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold">Stock Alerts</h1>
           <p className="text-muted-foreground">
-            Monitor low stock and out-of-stock items
+            Monitor low stock and out-of-stock items in real-time
           </p>
         </div>
 
@@ -180,7 +154,7 @@ const StockAlerts = () => {
               <ShoppingCart className="h-8 w-8 text-blue-600 mr-3" />
               <div>
                 <h3 className="text-lg font-semibold text-blue-900">Total Alerts</h3>
-                <p className="text-2xl font-bold text-blue-600">{allAlerts.length}</p>
+                <p className="text-2xl font-bold text-blue-600">{alertItems.length}</p>
               </div>
             </div>
           </div>
@@ -209,7 +183,7 @@ const StockAlerts = () => {
                 <TableHead className="text-right">Reorder Level</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Priority</TableHead>
-                <TableHead className="text-right">Value at Risk</TableHead>
+                <TableHead className="text-right">Unit Price</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -236,13 +210,13 @@ const StockAlerts = () => {
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell>{item.sku}</TableCell>
-                    <TableCell>{item.category}</TableCell>
+                    <TableCell>{item.category || 'Uncategorized'}</TableCell>
                     <TableCell className="text-right">
                       <span className={item.quantity === 0 ? "text-red-600 font-bold" : "text-yellow-600 font-medium"}>
                         {item.quantity}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right">{item.reorderLevel}</TableCell>
+                    <TableCell className="text-right">{item.reorderLevel || 10}</TableCell>
                     <TableCell>{getAlertBadge(item)}</TableCell>
                     <TableCell>
                       <span className={`font-medium ${getPriorityColor(getAlertPriority(item))}`}>
@@ -250,7 +224,7 @@ const StockAlerts = () => {
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
-                      {formatToRupees(item.price * item.reorderLevel)}
+                      {formatToRupees(item.price)}
                     </TableCell>
                   </TableRow>
                 ))
