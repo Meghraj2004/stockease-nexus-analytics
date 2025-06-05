@@ -29,8 +29,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { Plus, Search, Edit2, Building, AlertCircle } from "lucide-react";
+import { Plus, Search, Edit2, Building, AlertCircle, Package, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { db, auth } from "@/lib/firebase";
 import { 
   collection, 
@@ -43,6 +44,7 @@ import {
   onSnapshot 
 } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
+import { InventoryItem } from "@/types/inventory";
 
 interface Supplier {
   id: string;
@@ -55,6 +57,7 @@ interface Supplier {
   status: 'active' | 'inactive';
   totalOrders: number;
   totalAmount: number;
+  availableItems: string[]; // Array of inventory item IDs
   createdAt: Date;
   updatedAt: Date;
 }
@@ -62,10 +65,13 @@ interface Supplier {
 const Suppliers = () => {
   const [user, loading, authError] = useAuthState(auth);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [itemsDialogOpen, setItemsDialogOpen] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newSupplier, setNewSupplier] = useState<Partial<Supplier>>({
@@ -76,9 +82,51 @@ const Suppliers = () => {
     address: "",
     paymentTerms: "Net 30",
     status: "active",
+    availableItems: [],
   });
   const [editSupplier, setEditSupplier] = useState<Supplier | null>(null);
   const { toast } = useToast();
+
+  // Load inventory items
+  useEffect(() => {
+    if (loading) return;
+    if (!user) return;
+
+    console.log("Loading inventory items for supplier selection");
+    const q = query(collection(db, "inventory"), orderBy("name", "asc"));
+    
+    const unsubscribe = onSnapshot(
+      q, 
+      (querySnapshot) => {
+        const fetchedItems: InventoryItem[] = [];
+        
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          fetchedItems.push({
+            id: doc.id,
+            name: data.name || '',
+            description: data.description || '',
+            price: data.price || 0,
+            quantity: data.quantity || 0,
+            imageUrl: data.imageUrl || '',
+            sku: data.sku || '',
+            category: data.category || '',
+            costPrice: data.costPrice || 0,
+            reorderLevel: data.reorderLevel || 0,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+          } as InventoryItem);
+        });
+        
+        setInventoryItems(fetchedItems);
+      }, 
+      (error) => {
+        console.error("Error fetching inventory items:", error);
+      }
+    );
+    
+    return () => unsubscribe();
+  }, [user, loading]);
 
   useEffect(() => {
     if (loading) return; // Wait for auth to load
@@ -115,6 +163,7 @@ const Suppliers = () => {
             status: data.status || 'active',
             totalOrders: data.totalOrders || 0,
             totalAmount: data.totalAmount || 0,
+            availableItems: data.availableItems || [],
             createdAt: data.createdAt?.toDate() || new Date(),
             updatedAt: data.updatedAt?.toDate() || new Date(),
           } as Supplier);
@@ -160,6 +209,7 @@ const Suppliers = () => {
       address: "",
       paymentTerms: "Net 30",
       status: "active",
+      availableItems: [],
     });
   };
 
@@ -219,9 +269,10 @@ const Suppliers = () => {
         status: newSupplier.status || 'active',
         totalOrders: 0,
         totalAmount: 0,
+        availableItems: newSupplier.availableItems || [],
         createdAt: currentTime,
         updatedAt: currentTime,
-        userId: user.uid, // Add user ID for security
+        userId: user.uid,
       };
 
       const docRef = await addDoc(collection(db, "suppliers"), supplierData);
@@ -301,6 +352,7 @@ const Suppliers = () => {
         address: editSupplier.address?.trim() || '',
         paymentTerms: editSupplier.paymentTerms,
         status: editSupplier.status,
+        availableItems: editSupplier.availableItems || [],
         updatedAt: currentTime,
       };
 
@@ -335,6 +387,46 @@ const Suppliers = () => {
   const openEditDialog = (supplier: Supplier) => {
     setEditSupplier({...supplier});
     setEditDialogOpen(true);
+  };
+
+  const openItemsDialog = (supplier: Supplier) => {
+    setSelectedSupplier(supplier);
+    setItemsDialogOpen(true);
+  };
+
+  const toggleItemForSupplier = (itemId: string, isForNewSupplier: boolean = false) => {
+    if (isForNewSupplier) {
+      const currentItems = newSupplier.availableItems || [];
+      if (currentItems.includes(itemId)) {
+        setNewSupplier({
+          ...newSupplier,
+          availableItems: currentItems.filter(id => id !== itemId)
+        });
+      } else {
+        setNewSupplier({
+          ...newSupplier,
+          availableItems: [...currentItems, itemId]
+        });
+      }
+    } else if (editSupplier) {
+      const currentItems = editSupplier.availableItems || [];
+      if (currentItems.includes(itemId)) {
+        setEditSupplier({
+          ...editSupplier,
+          availableItems: currentItems.filter(id => id !== itemId)
+        });
+      } else {
+        setEditSupplier({
+          ...editSupplier,
+          availableItems: [...currentItems, itemId]
+        });
+      }
+    }
+  };
+
+  const getItemName = (itemId: string) => {
+    const item = inventoryItems.find(item => item.id === itemId);
+    return item ? item.name : 'Unknown Item';
   };
 
   const filteredSuppliers = suppliers.filter(
@@ -383,7 +475,7 @@ const Suppliers = () => {
         <div>
           <h1 className="text-3xl font-bold">Suppliers</h1>
           <p className="text-muted-foreground">
-            Manage your supplier information and relationships
+            Manage your supplier information and available items
           </p>
         </div>
 
@@ -412,11 +504,11 @@ const Suppliers = () => {
           
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
             <div className="flex items-center">
-              <Building className="h-8 w-8 text-purple-600 mr-3" />
+              <Package className="h-8 w-8 text-purple-600 mr-3" />
               <div>
-                <h3 className="text-lg font-semibold text-purple-900">Total Orders</h3>
+                <h3 className="text-lg font-semibold text-purple-900">Total Items</h3>
                 <p className="text-2xl font-bold text-purple-600">
-                  {suppliers.reduce((sum, s) => sum + s.totalOrders, 0)}
+                  {suppliers.reduce((sum, s) => sum + (s.availableItems?.length || 0), 0)}
                 </p>
               </div>
             </div>
@@ -441,11 +533,11 @@ const Suppliers = () => {
                 Add Supplier
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Supplier</DialogTitle>
                 <DialogDescription>
-                  Enter the details for the new supplier.
+                  Enter the details for the new supplier and select available items.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
@@ -530,6 +622,33 @@ const Suppliers = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right">
+                    Available Items
+                  </Label>
+                  <div className="col-span-3 space-y-2">
+                    <div className="max-h-32 overflow-y-auto border rounded p-2 space-y-1">
+                      {inventoryItems.map((item) => (
+                        <div key={item.id} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id={`item-${item.id}`}
+                            checked={(newSupplier.availableItems || []).includes(item.id)}
+                            onChange={() => toggleItemForSupplier(item.id, true)}
+                            className="h-4 w-4"
+                          />
+                          <label htmlFor={`item-${item.id}`} className="text-sm">
+                            {item.name} ({item.sku})
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Select items that this supplier can provide
+                    </p>
+                  </div>
+                </div>
               </div>
               <DialogFooter>
                 <Button 
@@ -558,7 +677,7 @@ const Suppliers = () => {
                 <TableHead>Contact Person</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
-                <TableHead>Payment Terms</TableHead>
+                <TableHead>Available Items</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -589,7 +708,24 @@ const Suppliers = () => {
                     <TableCell>{supplier.contactPerson}</TableCell>
                     <TableCell>{supplier.email || '-'}</TableCell>
                     <TableCell>{supplier.phone || '-'}</TableCell>
-                    <TableCell>{supplier.paymentTerms}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {(supplier.availableItems || []).slice(0, 2).map((itemId) => (
+                          <Badge key={itemId} variant="secondary" className="text-xs">
+                            {getItemName(itemId)}
+                          </Badge>
+                        ))}
+                        {(supplier.availableItems || []).length > 2 && (
+                          <Badge variant="outline" className="text-xs cursor-pointer"
+                                 onClick={() => openItemsDialog(supplier)}>
+                            +{(supplier.availableItems || []).length - 2} more
+                          </Badge>
+                        )}
+                        {(supplier.availableItems || []).length === 0 && (
+                          <span className="text-muted-foreground text-sm">No items</span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         supplier.status === 'active' 
@@ -600,13 +736,22 @@ const Suppliers = () => {
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => openEditDialog(supplier)}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => openItemsDialog(supplier)}
+                        >
+                          <Package className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => openEditDialog(supplier)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -618,11 +763,11 @@ const Suppliers = () => {
 
       {/* Edit Supplier Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Supplier</DialogTitle>
             <DialogDescription>
-              Update the supplier information.
+              Update the supplier information and available items.
             </DialogDescription>
           </DialogHeader>
           {editSupplier && (
@@ -720,6 +865,33 @@ const Suppliers = () => {
                   </SelectContent>
                 </Select>
               </div>
+              
+              <div className="grid grid-cols-4 items-start gap-4">
+                <Label className="text-right">
+                  Available Items
+                </Label>
+                <div className="col-span-3 space-y-2">
+                  <div className="max-h-32 overflow-y-auto border rounded p-2 space-y-1">
+                    {inventoryItems.map((item) => (
+                      <div key={item.id} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`edit-item-${item.id}`}
+                          checked={(editSupplier.availableItems || []).includes(item.id)}
+                          onChange={() => toggleItemForSupplier(item.id, false)}
+                          className="h-4 w-4"
+                        />
+                        <label htmlFor={`edit-item-${item.id}`} className="text-sm">
+                          {item.name} ({item.sku})
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Select items that this supplier can provide
+                  </p>
+                </div>
+              </div>
             </div>
           )}
           <DialogFooter>
@@ -735,6 +907,42 @@ const Suppliers = () => {
             </Button>
             <Button onClick={handleEditSupplier} disabled={isSubmitting}>
               {isSubmitting ? "Updating..." : "Update Supplier"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Items Dialog */}
+      <Dialog open={itemsDialogOpen} onOpenChange={setItemsDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Available Items</DialogTitle>
+            <DialogDescription>
+              Items available from {selectedSupplier?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {selectedSupplier && (selectedSupplier.availableItems || []).length > 0 ? (
+              <div className="space-y-2">
+                {(selectedSupplier.availableItems || []).map((itemId) => (
+                  <div key={itemId} className="flex items-center justify-between p-2 border rounded">
+                    <span className="font-medium">{getItemName(itemId)}</span>
+                    <Badge variant="secondary">
+                      {inventoryItems.find(item => item.id === itemId)?.sku || 'N/A'}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Package className="h-8 w-8 mx-auto mb-2" />
+                <p>No items available from this supplier</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setItemsDialogOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
