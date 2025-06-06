@@ -161,11 +161,14 @@ const Suppliers = () => {
           return {
             id: doc.id,
             name: data.name || '',
-            category: data.category || '',
-            quantity: data.quantity || 0,
-            price: data.price || 0,
             description: data.description || '',
-            minimumStock: data.minimumStock || 0,
+            price: data.price || 0,
+            quantity: data.quantity || 0,
+            imageUrl: data.imageUrl || '',
+            sku: data.sku || '',
+            category: data.category || '',
+            costPrice: data.costPrice || 0,
+            reorderLevel: data.reorderLevel || 0,
             createdAt: data.createdAt?.toDate() || new Date(),
             updatedAt: data.updatedAt?.toDate() || new Date(),
           };
