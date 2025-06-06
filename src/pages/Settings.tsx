@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import {
@@ -15,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import AdminRoute from "@/components/AdminRoute";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
@@ -176,7 +175,14 @@ const Settings = () => {
   
   // Handle saving general settings
   const handleSaveGeneralSettings = async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to save settings.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -193,6 +199,7 @@ const Settings = () => {
       };
       
       console.log('Saving business info:', businessData);
+      console.log('User ID:', currentUser.uid);
       
       // Check if document exists
       const docSnap = await getDoc(userSettingsRef);
@@ -200,13 +207,18 @@ const Settings = () => {
       if (docSnap.exists()) {
         // Update existing document
         await updateDoc(userSettingsRef, {
-          businessInfo: businessData
+          businessInfo: businessData,
+          updatedAt: new Date()
         });
+        console.log('Updated existing document');
       } else {
         // Create new document
         await setDoc(userSettingsRef, {
-          businessInfo: businessData
+          businessInfo: businessData,
+          createdAt: new Date(),
+          updatedAt: new Date()
         });
+        console.log('Created new document');
       }
       
       toast({
@@ -217,7 +229,7 @@ const Settings = () => {
       console.error('Error saving business settings:', error);
       toast({
         title: "Error",
-        description: "Failed to save business settings. Please try again.",
+        description: `Failed to save business settings: ${error.message}`,
         variant: "destructive",
       });
     } finally {
