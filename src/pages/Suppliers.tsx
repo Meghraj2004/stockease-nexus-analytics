@@ -84,6 +84,9 @@ const Suppliers = () => {
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
   const [searchTerm, setSearchTerm] = useState("");
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [isViewItemsOpen, setIsViewItemsOpen] = useState(false);
   const { toast } = useToast();
   
   const isMobile = useIsMobile();
@@ -121,6 +124,7 @@ const Suppliers = () => {
             address: data.address || '',
             description: data.description || '',
             status: data.status || 'inactive',
+            items: data.items || [],
             createdAt: data.createdAt?.toDate() || new Date(),
             updatedAt: data.updatedAt?.toDate() || new Date(),
           };
@@ -144,6 +148,40 @@ const Suppliers = () => {
     };
   }, [toast]);
 
+  // Fetch inventory items
+  useEffect(() => {
+    const inventoryCollection = collection(db, "inventory");
+    const q = query(inventoryCollection, orderBy("name"));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
+        const inventoryData: InventoryItem[] = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.name || '',
+            category: data.category || '',
+            quantity: data.quantity || 0,
+            price: data.price || 0,
+            description: data.description || '',
+            minimumStock: data.minimumStock || 0,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+          };
+        });
+        setInventoryItems(inventoryData);
+      },
+      (error) => {
+        console.error("Error fetching inventory:", error);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   const addSupplier = async () => {
     if (!name || !contactName || !email || !phone || !address) {
       toast({
@@ -156,6 +194,8 @@ const Suppliers = () => {
 
     try {
       const suppliersCollection = collection(db, "suppliers");
+      const selectedInventoryItems = inventoryItems.filter(item => selectedItems.includes(item.id));
+      
       await addDoc(suppliersCollection, {
         name,
         contactName,
@@ -164,6 +204,7 @@ const Suppliers = () => {
         address,
         description,
         status,
+        items: selectedInventoryItems,
         createdAt: Timestamp.fromDate(new Date()),
         updatedAt: Timestamp.fromDate(new Date()),
       });
@@ -188,6 +229,8 @@ const Suppliers = () => {
 
     try {
       const supplierDocRef = doc(db, "suppliers", selectedSupplier.id);
+      const selectedInventoryItems = inventoryItems.filter(item => selectedItems.includes(item.id));
+      
       await updateDoc(supplierDocRef, {
         name,
         contactName,
@@ -196,6 +239,7 @@ const Suppliers = () => {
         address,
         description,
         status,
+        items: selectedInventoryItems,
         updatedAt: Timestamp.fromDate(new Date()),
       });
       toast({
@@ -243,6 +287,7 @@ const Suppliers = () => {
     setAddress("");
     setDescription("");
     setStatus("active");
+    setSelectedItems([]);
   };
 
   const filteredSuppliers = suppliers.filter(
@@ -395,7 +440,7 @@ const Suppliers = () => {
                 Add Supplier
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Supplier</DialogTitle>
                 <DialogDescription>
@@ -475,7 +520,7 @@ const Suppliers = () => {
                   <Label htmlFor="status" className="text-right">
                     Status
                   </Label>
-                  <Select onValueChange={(value) => setStatus(value as 'active' | 'inactive')}>
+                  <Select value={status} onValueChange={(value) => setStatus(value as 'active' | 'inactive')}>
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
@@ -484,6 +529,38 @@ const Suppliers = () => {
                       <SelectItem value="inactive">Inactive</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="items" className="text-right">
+                    Available Items
+                  </Label>
+                  <div className="col-span-3 space-y-2">
+                    <div className="border rounded-md p-2 max-h-32 overflow-y-auto">
+                      {inventoryItems.map((item) => (
+                        <div key={item.id} className="flex items-center space-x-2 py-1">
+                          <input
+                            type="checkbox"
+                            id={`item-${item.id}`}
+                            checked={selectedItems.includes(item.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedItems([...selectedItems, item.id]);
+                              } else {
+                                setSelectedItems(selectedItems.filter(id => id !== item.id));
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <label htmlFor={`item-${item.id}`} className="text-sm">
+                            {item.name} - {item.category}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Select items that this supplier can provide
+                    </p>
+                  </div>
                 </div>
               </div>
               <DialogFooter>
@@ -599,7 +676,7 @@ const Suppliers = () => {
                   <Label htmlFor="status" className="text-right">
                     Status
                   </Label>
-                  <Select onValueChange={(value) => setStatus(value as 'active' | 'inactive')}>
+                  <Select value={status} onValueChange={(value) => setStatus(value as 'active' | 'inactive')}>
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
@@ -608,6 +685,38 @@ const Suppliers = () => {
                       <SelectItem value="inactive">Inactive</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="items" className="text-right">
+                    Available Items
+                  </Label>
+                  <div className="col-span-3 space-y-2">
+                    <div className="border rounded-md p-2 max-h-32 overflow-y-auto">
+                      {inventoryItems.map((item) => (
+                        <div key={item.id} className="flex items-center space-x-2 py-1">
+                          <input
+                            type="checkbox"
+                            id={`item-${item.id}`}
+                            checked={selectedItems.includes(item.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedItems([...selectedItems, item.id]);
+                              } else {
+                                setSelectedItems(selectedItems.filter(id => id !== item.id));
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <label htmlFor={`item-${item.id}`} className="text-sm">
+                            {item.name} - {item.category}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Select items that this supplier can provide
+                    </p>
+                  </div>
                 </div>
               </div>
               <DialogFooter>
@@ -631,6 +740,7 @@ const Suppliers = () => {
                 <TableHead>Contact Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
+                <TableHead>Items</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -638,7 +748,7 @@ const Suppliers = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10">
+                  <TableCell colSpan={7} className="text-center py-10">
                     <div className="flex justify-center items-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
                       <span className="ml-2">Loading suppliers...</span>
@@ -647,7 +757,7 @@ const Suppliers = () => {
                 </TableRow>
               ) : filteredSuppliers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10">
+                  <TableCell colSpan={7} className="text-center py-10">
                     <div className="flex flex-col items-center justify-center text-muted-foreground">
                       <Building className="h-12 w-12 mb-2" />
                       <h3 className="text-lg font-medium">
@@ -670,6 +780,25 @@ const Suppliers = () => {
                     <TableCell>{supplier.email}</TableCell>
                     <TableCell>{supplier.phone}</TableCell>
                     <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">
+                          {supplier.items?.length || 0} items
+                        </span>
+                        {supplier.items && supplier.items.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedSupplier(supplier);
+                              setIsViewItemsOpen(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       <Badge variant={supplier.status === 'active' ? 'default' : 'secondary'}>
                         {supplier.status}
                       </Badge>
@@ -688,6 +817,7 @@ const Suppliers = () => {
                             setAddress(supplier.address);
                             setDescription(supplier.description);
                             setStatus(supplier.status);
+                            setSelectedItems(supplier.items?.map(item => item.id) || []);
                             setIsEditDialogOpen(true);
                           }}
                         >
@@ -714,9 +844,52 @@ const Suppliers = () => {
           </Table>
         </div>
 
+        {/* View Items Dialog */}
+        <Dialog open={isViewItemsOpen} onOpenChange={setIsViewItemsOpen}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Available Items - {selectedSupplier?.name}</DialogTitle>
+              <DialogDescription>
+                Items that can be purchased from this supplier
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              {selectedSupplier?.items && selectedSupplier.items.length > 0 ? (
+                <div className="space-y-4">
+                  {selectedSupplier.items.map((item) => (
+                    <div key={item.id} className="flex justify-between items-center p-3 border rounded-lg">
+                      <div>
+                        <h4 className="font-medium">{item.name}</h4>
+                        <p className="text-sm text-muted-foreground">{item.category}</p>
+                        {item.description && (
+                          <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium">${item.price}</p>
+                        <p className="text-xs text-muted-foreground">Stock: {item.quantity}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Package className="h-12 w-12 mx-auto mb-2" />
+                  <p>No items available from this supplier</p>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setIsViewItemsOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Edit Supplier Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Supplier</DialogTitle>
               <DialogDescription>
@@ -796,15 +969,47 @@ const Suppliers = () => {
                 <Label htmlFor="status" className="text-right">
                   Status
                 </Label>
-                <Select onValueChange={(value) => setStatus(value as 'active' | 'inactive')}>
+                <Select value={status} onValueChange={(value) => setStatus(value as 'active' | 'inactive')}>
                   <SelectTrigger className="col-span-3">
-                    <SelectValue value={status} placeholder="Select status" />
+                    <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="inactive">Inactive</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="items" className="text-right">
+                  Available Items
+                </Label>
+                <div className="col-span-3 space-y-2">
+                  <div className="border rounded-md p-2 max-h-32 overflow-y-auto">
+                    {inventoryItems.map((item) => (
+                      <div key={item.id} className="flex items-center space-x-2 py-1">
+                        <input
+                          type="checkbox"
+                          id={`edit-item-${item.id}`}
+                          checked={selectedItems.includes(item.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedItems([...selectedItems, item.id]);
+                            } else {
+                              setSelectedItems(selectedItems.filter(id => id !== item.id));
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <label htmlFor={`edit-item-${item.id}`} className="text-sm">
+                          {item.name} - {item.category}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Select items that this supplier can provide
+                  </p>
+                </div>
               </div>
             </div>
             <DialogFooter>
