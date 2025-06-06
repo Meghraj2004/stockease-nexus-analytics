@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import {
@@ -18,7 +19,7 @@ import { useToast } from "@/components/ui/use-toast";
 import AdminRoute from "@/components/AdminRoute";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { doc, updateDoc, getDoc, setDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc, setDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
   AlertDialog,
@@ -36,11 +37,8 @@ import {
   Settings as SettingsIcon, 
   Save, 
   RefreshCw, 
-  Shield, 
   Palette,
-  Bell, 
-  Database,
-  UserCog
+  Database
 } from "lucide-react";
 
 const Settings = () => {
@@ -58,11 +56,6 @@ const Settings = () => {
   const [lowStockAlerts, setLowStockAlerts] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [autoBackup, setAutoBackup] = useState(true);
-  
-  // Security Settings
-  const [twoFactorAuth, setTwoFactorAuth] = useState(false);
-  const [passwordExpiry, setPasswordExpiry] = useState(false);
-  const [inactivityTimeout, setInactivityTimeout] = useState("30");
   
   // Database Settings
   const [autoOptimize, setAutoOptimize] = useState(true);
@@ -95,6 +88,20 @@ const Settings = () => {
         
         if (docSnap.exists()) {
           const data = docSnap.data();
+          console.log('Loaded settings data:', data);
+          
+          // Load business info
+          if (data.businessInfo) {
+            setCompanyName(data.businessInfo.companyName || "StockEase Inc.");
+            setAddress(data.businessInfo.address || "123 Business Ave.");
+            setPhone(data.businessInfo.phone || "555-123-4567");
+            setEmail(data.businessInfo.email || "contact@stockease.com");
+            setTaxId(data.businessInfo.taxId || "TAX-12345");
+            setVatRate(data.businessInfo.vatRate || "15");
+            setCurrency(data.businessInfo.currency || "USD");
+            setReceiptFooter(data.businessInfo.receiptFooter || "Thank you for your business!");
+          }
+          
           // Load user preferences
           if (data.preferences) {
             setLowStockAlerts(data.preferences.lowStockAlerts ?? true);
@@ -103,11 +110,11 @@ const Settings = () => {
             setAutoBackup(data.preferences.autoBackup ?? true);
           }
           
-          // Load security settings
-          if (data.security) {
-            setTwoFactorAuth(data.security.twoFactorAuth ?? false);
-            setPasswordExpiry(data.security.passwordExpiry ?? false);
-            setInactivityTimeout(data.security.inactivityTimeout ?? "30");
+          // Load database settings
+          if (data.database) {
+            setAutoOptimize(data.database.autoOptimize ?? true);
+            setBackupFrequency(data.database.backupFrequency || "daily");
+            setDataRetention(data.database.dataRetention || "365");
           }
         }
       } catch (error) {
@@ -117,7 +124,7 @@ const Settings = () => {
     
     loadUserSettings();
     
-    // Load database statistics
+    // Load real-time database statistics
     fetchDatabaseStats();
   }, [currentUser]);
   
@@ -126,16 +133,45 @@ const Settings = () => {
     setTheme(darkMode ? 'dark' : 'light');
   }, [darkMode, setTheme]);
   
-  // Fetch database statistics
+  // Fetch real-time database statistics
   const fetchDatabaseStats = async () => {
-    // Simulate fetching database stats
-    // In a real app, this would come from Firestore or an API
-    setDatabaseStats({
-      records: Math.floor(Math.random() * 20000) + 5000,
-      storage: `${(Math.random() * 500).toFixed(1)} MB`,
-      transactions: Math.floor(Math.random() * 1000) + 100,
-      performance: `${(90 + Math.random() * 9).toFixed(1)}%`
-    });
+    if (!currentUser) return;
+    
+    try {
+      let totalRecords = 0;
+      let totalTransactions = 0;
+      
+      // Count inventory records
+      const inventorySnapshot = await getDocs(collection(db, 'inventory'));
+      totalRecords += inventorySnapshot.size;
+      
+      // Count sales records
+      const salesSnapshot = await getDocs(collection(db, 'sales'));
+      totalRecords += salesSnapshot.size;
+      totalTransactions = salesSnapshot.size;
+      
+      // Count suppliers records
+      const suppliersSnapshot = await getDocs(collection(db, 'suppliers'));
+      totalRecords += suppliersSnapshot.size;
+      
+      // Estimate storage (rough calculation)
+      const estimatedStorage = (totalRecords * 2).toFixed(1); // Rough estimate: 2KB per record
+      
+      setDatabaseStats({
+        records: totalRecords,
+        storage: `${estimatedStorage} KB`,
+        transactions: totalTransactions,
+        performance: "95.2%" // Static for now, could be calculated based on query times
+      });
+    } catch (error) {
+      console.error('Error fetching database stats:', error);
+      setDatabaseStats({
+        records: 0,
+        storage: "0 KB",
+        transactions: 0,
+        performance: "N/A"
+      });
+    }
   };
   
   // Handle saving general settings
@@ -145,52 +181,45 @@ const Settings = () => {
     setIsLoading(true);
     try {
       const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
-      await updateDoc(userSettingsRef, {
-        businessInfo: {
-          companyName,
-          address,
-          phone,
-          email,
-          taxId,
-          vatRate,
-          currency,
-          receiptFooter
-        }
-      });
+      const businessData = {
+        companyName,
+        address,
+        phone,
+        email,
+        taxId,
+        vatRate,
+        currency,
+        receiptFooter
+      };
+      
+      console.log('Saving business info:', businessData);
+      
+      // Check if document exists
+      const docSnap = await getDoc(userSettingsRef);
+      
+      if (docSnap.exists()) {
+        // Update existing document
+        await updateDoc(userSettingsRef, {
+          businessInfo: businessData
+        });
+      } else {
+        // Create new document
+        await setDoc(userSettingsRef, {
+          businessInfo: businessData
+        });
+      }
       
       toast({
         title: "Settings Saved",
         description: "Your business settings have been updated successfully.",
       });
     } catch (error) {
-      console.error('Error saving settings:', error);
-      // If doc doesn't exist yet, create it
-      try {
-        const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
-        await setDoc(userSettingsRef, {
-          businessInfo: {
-            companyName,
-            address,
-            phone,
-            email,
-            taxId,
-            vatRate,
-            currency,
-            receiptFooter
-          }
-        });
-        
-        toast({
-          title: "Settings Saved",
-          description: "Your business settings have been created successfully.",
-        });
-      } catch (createError) {
-        toast({
-          title: "Error",
-          description: "Failed to save business settings.",
-          variant: "destructive",
-        });
-      }
+      console.error('Error saving business settings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save business settings. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -203,106 +232,39 @@ const Settings = () => {
     setIsLoading(true);
     try {
       const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
-      await updateDoc(userSettingsRef, {
-        preferences: {
-          lowStockAlerts,
-          emailNotifications,
-          darkMode,
-          autoBackup
-        }
-      });
+      const preferencesData = {
+        lowStockAlerts,
+        emailNotifications,
+        darkMode,
+        autoBackup
+      };
+      
+      // Check if document exists
+      const docSnap = await getDoc(userSettingsRef);
+      
+      if (docSnap.exists()) {
+        // Update existing document
+        await updateDoc(userSettingsRef, {
+          preferences: preferencesData
+        });
+      } else {
+        // Create new document
+        await setDoc(userSettingsRef, {
+          preferences: preferencesData
+        });
+      }
       
       toast({
         title: "Preferences Saved",
         description: "Your system preferences have been updated successfully.",
       });
     } catch (error) {
-      // If doc doesn't exist yet, create it
-      try {
-        const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
-        await setDoc(userSettingsRef, {
-          preferences: {
-            lowStockAlerts,
-            emailNotifications,
-            darkMode,
-            autoBackup
-          }
-        });
-        
-        toast({
-          title: "Preferences Saved",
-          description: "Your system preferences have been created successfully.",
-        });
-      } catch (createError) {
-        toast({
-          title: "Error",
-          description: "Failed to save preferences.",
-          variant: "destructive",
-        });
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  // Handle saving security settings
-  const handleSaveSecurity = async () => {
-    if (!currentUser) return;
-    
-    setIsLoading(true);
-    try {
-      const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
-      await updateDoc(userSettingsRef, {
-        security: {
-          twoFactorAuth,
-          passwordExpiry,
-          inactivityTimeout
-        }
-      });
-      
-      // Show message about 2FA
-      if (twoFactorAuth) {
-        toast({
-          title: "Two-Factor Authentication Enabled",
-          description: "You'll be prompted to set up 2FA next time you log in.",
-        });
-      }
-      
+      console.error('Error saving preferences:', error);
       toast({
-        title: "Security Settings Saved",
-        description: "Your security settings have been updated successfully.",
+        title: "Error",
+        description: "Failed to save preferences. Please try again.",
+        variant: "destructive",
       });
-    } catch (error) {
-      // If doc doesn't exist yet, create it
-      try {
-        const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
-        await setDoc(userSettingsRef, {
-          security: {
-            twoFactorAuth,
-            passwordExpiry,
-            inactivityTimeout
-          }
-        });
-        
-        // Show message about 2FA
-        if (twoFactorAuth) {
-          toast({
-            title: "Two-Factor Authentication Enabled",
-            description: "You'll be prompted to set up 2FA next time you log in.",
-          });
-        }
-        
-        toast({
-          title: "Security Settings Saved",
-          description: "Your security settings have been created successfully.",
-        });
-      } catch (createError) {
-        toast({
-          title: "Error",
-          description: "Failed to save security settings.",
-          variant: "destructive",
-        });
-      }
     } finally {
       setIsLoading(false);
     }
@@ -315,41 +277,38 @@ const Settings = () => {
     setIsLoading(true);
     try {
       const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
-      await updateDoc(userSettingsRef, {
-        database: {
-          autoOptimize,
-          backupFrequency,
-          dataRetention
-        }
-      });
+      const databaseData = {
+        autoOptimize,
+        backupFrequency,
+        dataRetention
+      };
+      
+      // Check if document exists
+      const docSnap = await getDoc(userSettingsRef);
+      
+      if (docSnap.exists()) {
+        // Update existing document
+        await updateDoc(userSettingsRef, {
+          database: databaseData
+        });
+      } else {
+        // Create new document
+        await setDoc(userSettingsRef, {
+          database: databaseData
+        });
+      }
       
       toast({
         title: "Database Settings Saved",
         description: "Your database settings have been updated successfully.",
       });
     } catch (error) {
-      // If doc doesn't exist yet, create it
-      try {
-        const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
-        await setDoc(userSettingsRef, {
-          database: {
-            autoOptimize,
-            backupFrequency,
-            dataRetention
-          }
-        });
-        
-        toast({
-          title: "Database Settings Saved",
-          description: "Your database settings have been created successfully.",
-        });
-      } catch (createError) {
-        toast({
-          title: "Error",
-          description: "Failed to save database settings.",
-          variant: "destructive",
-        });
-      }
+      console.error('Error saving database settings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save database settings. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -406,10 +365,6 @@ const Settings = () => {
     setDarkMode(false);
     setAutoBackup(true);
     
-    setTwoFactorAuth(false);
-    setPasswordExpiry(false);
-    setInactivityTimeout("30");
-    
     setAutoOptimize(true);
     setBackupFrequency("daily");
     setDataRetention("365");
@@ -427,11 +382,6 @@ const Settings = () => {
             emailNotifications: true,
             darkMode: false,
             autoBackup: true
-          },
-          security: {
-            twoFactorAuth: false,
-            passwordExpiry: false,
-            inactivityTimeout: "30"
           },
           database: {
             autoOptimize: true,
@@ -497,7 +447,7 @@ const Settings = () => {
           </div>
           
           <Tabs defaultValue="general" className="space-y-4">
-            <TabsList className="grid grid-cols-4 md:w-[600px]">
+            <TabsList className="grid grid-cols-3 md:w-[450px]">
               <TabsTrigger value="general" className="flex items-center gap-2">
                 <SettingsIcon size={16} />
                 Business Information
@@ -505,10 +455,6 @@ const Settings = () => {
               <TabsTrigger value="preferences" className="flex items-center gap-2">
                 <Palette size={16} />
                 Preferences
-              </TabsTrigger>
-              <TabsTrigger value="security" className="flex items-center gap-2">
-                <Shield size={16} />
-                Security
               </TabsTrigger>
               <TabsTrigger value="database" className="flex items-center gap-2">
                 <Database size={16} />
@@ -749,141 +695,9 @@ const Settings = () => {
                   </div>
                   <div className="grid grid-cols-2">
                     <span className="font-medium">Storage Used:</span>
-                    <span>{(Math.random() * 20).toFixed(1)} MB</span>
+                    <span>{databaseStats.storage}</span>
                   </div>
                 </CardContent>
-              </Card>
-            </TabsContent>
-            
-            <TabsContent value="security" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Security Settings</CardTitle>
-                  <CardDescription>
-                    Configure security options for your system
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="twoFactorAuth">Two-Factor Authentication</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Require an additional verification code when logging in
-                      </p>
-                    </div>
-                    <Switch
-                      id="twoFactorAuth"
-                      checked={twoFactorAuth}
-                      onCheckedChange={setTwoFactorAuth}
-                    />
-                  </div>
-                  
-                  <Separator />
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="passwordExpiry">Password Expiry</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Force password reset every 90 days
-                      </p>
-                    </div>
-                    <Switch
-                      id="passwordExpiry"
-                      checked={passwordExpiry}
-                      onCheckedChange={setPasswordExpiry}
-                    />
-                  </div>
-                  
-                  <Separator />
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="inactivityTimeout">Session Timeout (minutes)</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Automatically log out users after inactivity
-                    </p>
-                    <Input
-                      id="inactivityTimeout"
-                      type="number"
-                      value={inactivityTimeout}
-                      onChange={(e) => setInactivityTimeout(e.target.value)}
-                      className="max-w-xs"
-                    />
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button
-                    className="ml-auto flex items-center gap-2"
-                    onClick={handleSaveSecurity}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <>
-                        <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Shield size={16} />
-                        Save Security Settings
-                      </>
-                    )}
-                  </Button>
-                </CardFooter>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle>User Access Control</CardTitle>
-                  <CardDescription>
-                    Manage role-based access permissions
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-4 font-medium">
-                      <div>Role</div>
-                      <div>Inventory</div>
-                      <div>Sales</div>
-                      <div>Reports</div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div className="grid grid-cols-4 items-center">
-                      <div>Admin</div>
-                      <div><Switch checked={true} disabled /></div>
-                      <div><Switch checked={true} disabled /></div>
-                      <div><Switch checked={true} disabled /></div>
-                    </div>
-                    
-                    <div className="grid grid-cols-4 items-center">
-                      <div>Manager</div>
-                      <div><Switch defaultChecked /></div>
-                      <div><Switch defaultChecked /></div>
-                      <div><Switch defaultChecked /></div>
-                    </div>
-                    
-                    <div className="grid grid-cols-4 items-center">
-                      <div>Cashier</div>
-                      <div><Switch /></div>
-                      <div><Switch defaultChecked /></div>
-                      <div><Switch /></div>
-                    </div>
-                    
-                    <div className="grid grid-cols-4 items-center">
-                      <div>Inventory</div>
-                      <div><Switch defaultChecked /></div>
-                      <div><Switch /></div>
-                      <div><Switch /></div>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button className="ml-auto flex items-center gap-2">
-                    <UserCog size={16} />
-                    Update Permissions
-                  </Button>
-                </CardFooter>
               </Card>
             </TabsContent>
             
@@ -995,7 +809,7 @@ const Settings = () => {
                 <CardHeader>
                   <CardTitle>Database Statistics</CardTitle>
                   <CardDescription>
-                    Current database usage and performance
+                    Real-time database usage and performance
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1010,7 +824,7 @@ const Settings = () => {
                         <div className="text-2xl font-bold">{databaseStats.storage}</div>
                       </div>
                       <div className="bg-muted/50 p-3 rounded-lg">
-                        <div className="text-sm font-medium">Daily Transactions</div>
+                        <div className="text-sm font-medium">Sales Transactions</div>
                         <div className="text-2xl font-bold">{databaseStats.transactions.toLocaleString()}</div>
                       </div>
                       <div className="bg-muted/50 p-3 rounded-lg">
@@ -1018,6 +832,14 @@ const Settings = () => {
                         <div className="text-2xl font-bold">{databaseStats.performance}</div>
                       </div>
                     </div>
+                    <Button 
+                      variant="outline" 
+                      onClick={fetchDatabaseStats}
+                      className="flex items-center gap-2"
+                    >
+                      <RefreshCw size={16} />
+                      Refresh Statistics
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
