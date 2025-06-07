@@ -2,12 +2,14 @@
 import { useState, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { loginUser } from "@/lib/firebase";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
+import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Sparkles } from "lucide-react";
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -19,13 +21,82 @@ const Login = () => {
   
   const cardRef = useRef<HTMLDivElement>(null);
 
+  const checkUserRole = async (userId: string) => {
+    try {
+      const userDoc = await getDoc(doc(db, "users", userId));
+      if (userDoc.exists()) {
+        return userDoc.data().role;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error checking user role:", error);
+      return null;
+    }
+  };
+
+  const checkAdminSession = async () => {
+    try {
+      const sessionDoc = await getDoc(doc(db, "system", "adminSession"));
+      if (sessionDoc.exists()) {
+        const sessionData = sessionDoc.data();
+        // Check if session is still active (within last 30 minutes)
+        const lastActivity = sessionData.lastActivity?.toDate();
+        const now = new Date();
+        const timeDiff = now.getTime() - lastActivity?.getTime();
+        const thirtyMinutes = 30 * 60 * 1000;
+        
+        return timeDiff < thirtyMinutes;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error checking admin session:", error);
+      return false;
+    }
+  };
+
+  const setAdminSession = async (userId: string) => {
+    try {
+      await setDoc(doc(db, "system", "adminSession"), {
+        adminId: userId,
+        lastActivity: new Date(),
+        loginTime: new Date(),
+      });
+    } catch (error) {
+      console.error("Error setting admin session:", error);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setHasError(false);
 
     try {
-      await loginUser(email, password);
+      const userCredential = await loginUser(email, password);
+      const user = userCredential.user;
+      
+      // Check user role
+      const userRole = await checkUserRole(user.uid);
+      
+      // If user is admin, check for existing admin session
+      if (userRole === "admin") {
+        const adminSessionActive = await checkAdminSession();
+        if (adminSessionActive) {
+          // Force logout and show error
+          await user.getIdToken(true); // This will trigger a logout
+          toast({
+            title: "Admin Session Active",
+            description: "An admin is already logged in. Only one admin session is allowed at a time.",
+            variant: "destructive",
+          });
+          setHasError(true);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Set admin session
+        await setAdminSession(user.uid);
+      }
       
       toast({
         title: "Login Successful",

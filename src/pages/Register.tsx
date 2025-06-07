@@ -2,13 +2,13 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { registerUser } from "@/lib/firebase";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { Package } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -20,6 +20,17 @@ const Register = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const checkAdminExists = async () => {
+    try {
+      const usersQuery = query(collection(db, "users"), where("role", "==", "admin"));
+      const querySnapshot = await getDocs(usersQuery);
+      return !querySnapshot.empty;
+    } catch (error) {
+      console.error("Error checking admin existence:", error);
+      return false;
+    }
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +46,20 @@ const Register = () => {
       return;
     }
 
+    // Check if admin already exists when trying to register as admin
+    if (role === "admin") {
+      const adminExists = await checkAdminExists();
+      if (adminExists) {
+        toast({
+          title: "Admin Already Exists",
+          description: "An admin already exists. Only one admin is allowed in the system.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+    }
+
     try {
       const userCredential = await registerUser(email, password);
       const user = userCredential.user;
@@ -45,6 +70,15 @@ const Register = () => {
         role: role,
         createdAt: new Date(),
       });
+
+      // If registering as admin, update system status
+      if (role === "admin") {
+        await setDoc(doc(db, "system", "adminStatus"), {
+          adminExists: true,
+          adminId: user.uid,
+          lastUpdated: new Date(),
+        });
+      }
 
       toast({
         title: "Account Created",
