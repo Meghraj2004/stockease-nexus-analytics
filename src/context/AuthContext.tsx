@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, deleteDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 interface UserData {
@@ -31,28 +31,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { toast } = useToast();
 
-  const updateAdminSession = async (userId: string) => {
-    try {
-      await setDoc(doc(db, "system", "adminSession"), {
-        adminId: userId,
-        lastActivity: new Date(),
-      }, { merge: true });
-    } catch (error) {
-      console.error("Error updating admin session:", error);
-    }
-  };
-
-  const clearAdminSession = async (userId: string) => {
-    try {
-      const sessionDoc = await getDoc(doc(db, "system", "adminSession"));
-      if (sessionDoc.exists() && sessionDoc.data().adminId === userId) {
-        await deleteDoc(doc(db, "system", "adminSession"));
-      }
-    } catch (error) {
-      console.error("Error clearing admin session:", error);
-    }
-  };
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
@@ -71,11 +49,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               email: user.email,
               role: userRole,
             });
-
-            // Update admin session if user is admin
-            if (userRole === 'admin') {
-              await updateAdminSession(user.uid);
-            }
           } else {
             console.error('No user data found in Firestore');
           }
@@ -88,31 +61,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
         }
       } else {
-        // Clear admin session if user logs out and was admin
-        if (userData?.role === 'admin') {
-          await clearAdminSession(userData.uid);
-        }
         setUserData(null);
       }
       
       setIsLoading(false);
     });
 
-    // Set up periodic admin session updates
-    let sessionInterval: NodeJS.Timeout;
-    if (userData?.role === 'admin') {
-      sessionInterval = setInterval(() => {
-        updateAdminSession(userData.uid);
-      }, 5 * 60 * 1000); // Update every 5 minutes
-    }
-
     return () => {
       unsubscribe();
-      if (sessionInterval) {
-        clearInterval(sessionInterval);
-      }
     };
-  }, [toast, userData?.role, userData?.uid]);
+  }, [toast]);
 
   const value = {
     currentUser,
