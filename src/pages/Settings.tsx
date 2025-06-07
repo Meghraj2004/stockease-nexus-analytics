@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import AdminRoute from "@/components/AdminRoute";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { doc, updateDoc, getDoc, setDoc, collection, getDocs } from "firebase/firestore";
+import { doc, updateDoc, getDoc, setDoc, collection, getDocs, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
   AlertDialog,
@@ -37,8 +37,20 @@ import {
   Save, 
   RefreshCw, 
   Palette,
-  Database
+  Database,
+  Shield,
+  Bell,
+  Users,
+  Activity,
+  Download,
+  Upload,
+  Trash2,
+  AlertTriangle,
+  CheckCircle,
+  XCircle
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 
 const Settings = () => {
   // Business Information State
@@ -56,6 +68,20 @@ const Settings = () => {
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [autoBackup, setAutoBackup] = useState(true);
   
+  // New Security Settings
+  const [sessionTimeout, setSessionTimeout] = useState("30");
+  const [requirePasswordChange, setRequirePasswordChange] = useState(false);
+  const [enableTwoFactor, setEnableTwoFactor] = useState(false);
+  const [loginAttempts, setLoginAttempts] = useState("3");
+  
+  // New Notification Settings
+  const [emailDailyReports, setEmailDailyReports] = useState(true);
+  const [emailWeeklyReports, setEmailWeeklyReports] = useState(true);
+  const [pushNotifications, setPushNotifications] = useState(true);
+  const [soundAlerts, setSoundAlerts] = useState(true);
+  const [inventoryAlerts, setInventoryAlerts] = useState(true);
+  const [salesAlerts, setSalesAlerts] = useState(false);
+  
   // Database Settings
   const [autoOptimize, setAutoOptimize] = useState(true);
   const [backupFrequency, setBackupFrequency] = useState("daily");
@@ -67,9 +93,19 @@ const Settings = () => {
     performance: "0%"
   });
   
+  // User Management State
+  const [users, setUsers] = useState([]);
+  const [systemHealth, setSystemHealth] = useState({
+    status: "healthy",
+    uptime: "99.9%",
+    responseTime: "120ms",
+    errors: 0
+  });
+  
   // Loading States
   const [isLoading, setIsLoading] = useState(false);
   const [isBackupInProgress, setIsBackupInProgress] = useState(false);
+  const [isExportInProgress, setIsExportInProgress] = useState(false);
   
   const { toast } = useToast();
   const { theme, toggleTheme, setTheme } = useTheme();
@@ -109,6 +145,24 @@ const Settings = () => {
             setAutoBackup(data.preferences.autoBackup ?? true);
           }
           
+          // Load security settings
+          if (data.security) {
+            setSessionTimeout(data.security.sessionTimeout || "30");
+            setRequirePasswordChange(data.security.requirePasswordChange ?? false);
+            setEnableTwoFactor(data.security.enableTwoFactor ?? false);
+            setLoginAttempts(data.security.loginAttempts || "3");
+          }
+          
+          // Load notification settings
+          if (data.notifications) {
+            setEmailDailyReports(data.notifications.emailDailyReports ?? true);
+            setEmailWeeklyReports(data.notifications.emailWeeklyReports ?? true);
+            setPushNotifications(data.notifications.pushNotifications ?? true);
+            setSoundAlerts(data.notifications.soundAlerts ?? true);
+            setInventoryAlerts(data.notifications.inventoryAlerts ?? true);
+            setSalesAlerts(data.notifications.salesAlerts ?? false);
+          }
+          
           // Load database settings
           if (data.database) {
             setAutoOptimize(data.database.autoOptimize ?? true);
@@ -122,15 +176,40 @@ const Settings = () => {
     };
     
     loadUserSettings();
-    
-    // Load real-time database statistics
+    loadUsers();
     fetchDatabaseStats();
+    fetchSystemHealth();
   }, [currentUser]);
   
   // Update theme when dark mode changes
   useEffect(() => {
     setTheme(darkMode ? 'dark' : 'light');
   }, [darkMode, setTheme]);
+  
+  // Load users for user management
+  const loadUsers = async () => {
+    try {
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const usersList = usersSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setUsers(usersList);
+    } catch (error) {
+      console.error('Error loading users:', error);
+    }
+  };
+  
+  // Fetch system health metrics
+  const fetchSystemHealth = async () => {
+    // Simulate system health check
+    setSystemHealth({
+      status: Math.random() > 0.1 ? "healthy" : "warning",
+      uptime: `${(99 + Math.random()).toFixed(1)}%`,
+      responseTime: `${Math.floor(80 + Math.random() * 100)}ms`,
+      errors: Math.floor(Math.random() * 5)
+    });
+  };
   
   // Fetch real-time database statistics
   const fetchDatabaseStats = async () => {
@@ -198,9 +277,6 @@ const Settings = () => {
         receiptFooter
       };
       
-      console.log('Saving business info:', businessData);
-      console.log('User ID:', currentUser.uid);
-      
       // Check if document exists
       const docSnap = await getDoc(userSettingsRef);
       
@@ -210,7 +286,6 @@ const Settings = () => {
           businessInfo: businessData,
           updatedAt: new Date()
         });
-        console.log('Updated existing document');
       } else {
         // Create new document
         await setDoc(userSettingsRef, {
@@ -218,7 +293,6 @@ const Settings = () => {
           createdAt: new Date(),
           updatedAt: new Date()
         });
-        console.log('Created new document');
       }
       
       toast({
@@ -230,6 +304,92 @@ const Settings = () => {
       toast({
         title: "Error",
         description: `Failed to save business settings: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Handle saving security settings
+  const handleSaveSecuritySettings = async () => {
+    if (!currentUser) return;
+    
+    setIsLoading(true);
+    try {
+      const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
+      const securityData = {
+        sessionTimeout,
+        requirePasswordChange,
+        enableTwoFactor,
+        loginAttempts
+      };
+      
+      const docSnap = await getDoc(userSettingsRef);
+      
+      if (docSnap.exists()) {
+        await updateDoc(userSettingsRef, {
+          security: securityData
+        });
+      } else {
+        await setDoc(userSettingsRef, {
+          security: securityData
+        });
+      }
+      
+      toast({
+        title: "Security Settings Saved",
+        description: "Your security settings have been updated successfully.",
+      });
+    } catch (error) {
+      console.error('Error saving security settings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save security settings. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Handle saving notification settings
+  const handleSaveNotificationSettings = async () => {
+    if (!currentUser) return;
+    
+    setIsLoading(true);
+    try {
+      const userSettingsRef = doc(db, 'userSettings', currentUser.uid);
+      const notificationData = {
+        emailDailyReports,
+        emailWeeklyReports,
+        pushNotifications,
+        soundAlerts,
+        inventoryAlerts,
+        salesAlerts
+      };
+      
+      const docSnap = await getDoc(userSettingsRef);
+      
+      if (docSnap.exists()) {
+        await updateDoc(userSettingsRef, {
+          notifications: notificationData
+        });
+      } else {
+        await setDoc(userSettingsRef, {
+          notifications: notificationData
+        });
+      }
+      
+      toast({
+        title: "Notification Settings Saved",
+        description: "Your notification preferences have been updated successfully.",
+      });
+    } catch (error) {
+      console.error('Error saving notification settings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save notification settings. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -340,7 +500,8 @@ const Settings = () => {
             userId: currentUser.uid,
             timestamp: new Date(),
             status: 'completed',
-            size: `${(Math.random() * 10).toFixed(2)} MB`
+            size: `${(Math.random() * 10).toFixed(2)} MB`,
+            type: 'manual'
           });
         }
         
@@ -360,6 +521,74 @@ const Settings = () => {
     }, 3000);
   };
   
+  // Handle data export
+  const handleExportData = async () => {
+    setIsExportInProgress(true);
+    
+    setTimeout(() => {
+      // Simulate data export
+      const data = {
+        exportDate: new Date().toISOString(),
+        company: companyName,
+        totalRecords: databaseStats.records,
+        users: users.length
+      };
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `stockease-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      setIsExportInProgress(false);
+      toast({
+        title: "Export Complete",
+        description: "Your data has been exported successfully.",
+      });
+    }, 2000);
+  };
+  
+  // Handle user role update
+  const handleUpdateUserRole = async (userId, newRole) => {
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, { role: newRole });
+      loadUsers(); // Refresh users list
+      toast({
+        title: "User Updated",
+        description: "User role has been updated successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update user role.",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  // Handle user deletion
+  const handleDeleteUser = async (userId) => {
+    try {
+      await deleteDoc(doc(db, 'users', userId));
+      loadUsers(); // Refresh users list
+      toast({
+        title: "User Deleted",
+        description: "User has been deleted successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete user.",
+        variant: "destructive",
+      });
+    }
+  };
+  
   // Handle resetting settings
   const handleResetSettings = async () => {
     // Reset all settings to defaults
@@ -376,6 +605,18 @@ const Settings = () => {
     setEmailNotifications(true);
     setDarkMode(false);
     setAutoBackup(true);
+    
+    setSessionTimeout("30");
+    setRequirePasswordChange(false);
+    setEnableTwoFactor(false);
+    setLoginAttempts("3");
+    
+    setEmailDailyReports(true);
+    setEmailWeeklyReports(true);
+    setPushNotifications(true);
+    setSoundAlerts(true);
+    setInventoryAlerts(true);
+    setSalesAlerts(false);
     
     setAutoOptimize(true);
     setBackupFrequency("daily");
@@ -394,6 +635,20 @@ const Settings = () => {
             emailNotifications: true,
             darkMode: false,
             autoBackup: true
+          },
+          security: {
+            sessionTimeout: "30",
+            requirePasswordChange: false,
+            enableTwoFactor: false,
+            loginAttempts: "3"
+          },
+          notifications: {
+            emailDailyReports: true,
+            emailWeeklyReports: true,
+            pushNotifications: true,
+            soundAlerts: true,
+            inventoryAlerts: true,
+            salesAlerts: false
           },
           database: {
             autoOptimize: true,
@@ -433,40 +688,72 @@ const Settings = () => {
                 Configure your inventory and sales system
               </p>
             </div>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" className="flex items-center gap-2">
-                  <RefreshCw size={16} />
-                  Reset All Settings
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action will reset all your settings to their default values.
-                    This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleResetSettings}>
-                    Reset Settings
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={handleExportData}
+                disabled={isExportInProgress}
+                className="flex items-center gap-2"
+              >
+                {isExportInProgress ? (
+                  <>
+                    <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <Download size={16} />
+                    Export Data
+                  </>
+                )}
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="flex items-center gap-2">
+                    <RefreshCw size={16} />
+                    Reset All Settings
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action will reset all your settings to their default values.
+                      This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleResetSettings}>
+                      Reset Settings
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
           
           <Tabs defaultValue="general" className="space-y-4">
-            <TabsList className="grid grid-cols-3 md:w-[450px]">
+            <TabsList className="grid grid-cols-2 md:grid-cols-6 md:w-full">
               <TabsTrigger value="general" className="flex items-center gap-2">
                 <SettingsIcon size={16} />
-                Business Information
+                Business
               </TabsTrigger>
-              <TabsTrigger value="preferences" className="flex items-center gap-2">
-                <Palette size={16} />
-                Preferences
+              <TabsTrigger value="security" className="flex items-center gap-2">
+                <Shield size={16} />
+                Security
+              </TabsTrigger>
+              <TabsTrigger value="notifications" className="flex items-center gap-2">
+                <Bell size={16} />
+                Notifications
+              </TabsTrigger>
+              <TabsTrigger value="users" className="flex items-center gap-2">
+                <Users size={16} />
+                Users
+              </TabsTrigger>
+              <TabsTrigger value="system" className="flex items-center gap-2">
+                <Activity size={16} />
+                System
               </TabsTrigger>
               <TabsTrigger value="database" className="flex items-center gap-2">
                 <Database size={16} />
@@ -591,12 +878,375 @@ const Settings = () => {
               </Card>
             </TabsContent>
             
-            <TabsContent value="preferences" className="space-y-4">
+            <TabsContent value="security" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Security Settings</CardTitle>
+                  <CardDescription>
+                    Configure security policies and access controls
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="sessionTimeout">Session Timeout (minutes)</Label>
+                    <Input
+                      id="sessionTimeout"
+                      type="number"
+                      value={sessionTimeout}
+                      onChange={(e) => setSessionTimeout(e.target.value)}
+                      className="max-w-xs"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Users will be logged out after this period of inactivity
+                    </p>
+                  </div>
+                  
+                  <Separator />
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="loginAttempts">Maximum Login Attempts</Label>
+                    <Input
+                      id="loginAttempts"
+                      type="number"
+                      value={loginAttempts}
+                      onChange={(e) => setLoginAttempts(e.target.value)}
+                      className="max-w-xs"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Account will be locked after this many failed attempts
+                    </p>
+                  </div>
+                  
+                  <Separator />
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="requirePasswordChange">Force Password Change</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Require users to change passwords every 90 days
+                      </p>
+                    </div>
+                    <Switch
+                      id="requirePasswordChange"
+                      checked={requirePasswordChange}
+                      onCheckedChange={setRequirePasswordChange}
+                    />
+                  </div>
+                  
+                  <Separator />
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="enableTwoFactor">Two-Factor Authentication</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Enable 2FA for enhanced security (coming soon)
+                      </p>
+                    </div>
+                    <Switch
+                      id="enableTwoFactor"
+                      checked={enableTwoFactor}
+                      onCheckedChange={setEnableTwoFactor}
+                      disabled
+                    />
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button
+                    className="ml-auto flex items-center gap-2"
+                    onClick={handleSaveSecuritySettings}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={16} />
+                        Save Security Settings
+                      </>
+                    )}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="notifications" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Notification Preferences</CardTitle>
+                  <CardDescription>
+                    Choose how and when you want to receive notifications
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Email Reports</h4>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="emailDailyReports">Daily Reports</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Receive daily sales and inventory summaries
+                        </p>
+                      </div>
+                      <Switch
+                        id="emailDailyReports"
+                        checked={emailDailyReports}
+                        onCheckedChange={setEmailDailyReports}
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="emailWeeklyReports">Weekly Reports</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Receive comprehensive weekly analytics
+                        </p>
+                      </div>
+                      <Switch
+                        id="emailWeeklyReports"
+                        checked={emailWeeklyReports}
+                        onCheckedChange={setEmailWeeklyReports}
+                      />
+                    </div>
+                  </div>
+                  
+                  <Separator />
+                  
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Real-time Alerts</h4>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="inventoryAlerts">Inventory Alerts</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Get notified when stock levels are low
+                        </p>
+                      </div>
+                      <Switch
+                        id="inventoryAlerts"
+                        checked={inventoryAlerts}
+                        onCheckedChange={setInventoryAlerts}
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="salesAlerts">Sales Alerts</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Get notified of significant sales events
+                        </p>
+                      </div>
+                      <Switch
+                        id="salesAlerts"
+                        checked={salesAlerts}
+                        onCheckedChange={setSalesAlerts}
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="pushNotifications">Push Notifications</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Receive browser notifications
+                        </p>
+                      </div>
+                      <Switch
+                        id="pushNotifications"
+                        checked={pushNotifications}
+                        onCheckedChange={setPushNotifications}
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="soundAlerts">Sound Alerts</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Play sound for important notifications
+                        </p>
+                      </div>
+                      <Switch
+                        id="soundAlerts"
+                        checked={soundAlerts}
+                        onCheckedChange={setSoundAlerts}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button
+                    className="ml-auto flex items-center gap-2"
+                    onClick={handleSaveNotificationSettings}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={16} />
+                        Save Notification Settings
+                      </>
+                    )}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="users" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>User Management</CardTitle>
+                  <CardDescription>
+                    Manage user accounts and permissions
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {users.map((user) => (
+                      <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="space-y-1">
+                          <p className="font-medium">{user.email}</p>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={user.role === 'admin' ? 'destructive' : 'secondary'}>
+                              {user.role}
+                            </Badge>
+                            <span className="text-sm text-muted-foreground">
+                              Created: {user.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {user.role !== 'admin' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleUpdateUserRole(user.id, user.role === 'admin' ? 'employee' : 'admin')}
+                            >
+                              Make Admin
+                            </Button>
+                          )}
+                          {user.id !== currentUser?.uid && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="outline" size="sm" className="text-red-600">
+                                  <Trash2 size={16} />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete User</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete this user? This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDeleteUser(user.id)}>
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="system" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>System Health</CardTitle>
+                  <CardDescription>
+                    Monitor system performance and status
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        {systemHealth.status === 'healthy' ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : systemHealth.status === 'warning' ? (
+                          <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-500" />
+                        )}
+                        <span className="font-medium">System Status</span>
+                      </div>
+                      <p className="text-2xl font-bold capitalize">{systemHealth.status}</p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <span className="font-medium">Uptime</span>
+                      <p className="text-2xl font-bold">{systemHealth.uptime}</p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <span className="font-medium">Response Time</span>
+                      <p className="text-2xl font-bold">{systemHealth.responseTime}</p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <span className="font-medium">Errors (24h)</span>
+                      <p className="text-2xl font-bold">{systemHealth.errors}</p>
+                    </div>
+                  </div>
+                  
+                  <Separator className="my-6" />
+                  
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Performance Metrics</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>CPU Usage</span>
+                          <span>23%</span>
+                        </div>
+                        <Progress value={23} className="h-2" />
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Memory Usage</span>
+                          <span>45%</span>
+                        </div>
+                        <Progress value={45} className="h-2" />
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Database Performance</span>
+                          <span>89%</span>
+                        </div>
+                        <Progress value={89} className="h-2" />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button 
+                    variant="outline" 
+                    onClick={fetchSystemHealth}
+                    className="flex items-center gap-2"
+                  >
+                    <RefreshCw size={16} />
+                    Refresh Status
+                  </Button>
+                </CardFooter>
+              </Card>
+              
               <Card>
                 <CardHeader>
                   <CardTitle>System Preferences</CardTitle>
                   <CardDescription>
-                    Configure how the system works and notifies you
+                    Configure general system behavior
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -683,33 +1333,6 @@ const Settings = () => {
                     )}
                   </Button>
                 </CardFooter>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle>System Information</CardTitle>
-                  <CardDescription>
-                    Version and database details
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="grid grid-cols-2">
-                    <span className="font-medium">System Version:</span>
-                    <span>1.0.0</span>
-                  </div>
-                  <div className="grid grid-cols-2">
-                    <span className="font-medium">Database:</span>
-                    <span>Firebase Firestore</span>
-                  </div>
-                  <div className="grid grid-cols-2">
-                    <span className="font-medium">Last Backup:</span>
-                    <span>{new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}</span>
-                  </div>
-                  <div className="grid grid-cols-2">
-                    <span className="font-medium">Storage Used:</span>
-                    <span>{databaseStats.storage}</span>
-                  </div>
-                </CardContent>
               </Card>
             </TabsContent>
             
