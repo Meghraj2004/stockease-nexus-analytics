@@ -17,9 +17,26 @@ const Register = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState("employee");
+  const [securityQuestion1, setSecurityQuestion1] = useState("");
+  const [securityAnswer1, setSecurityAnswer1] = useState("");
+  const [securityQuestion2, setSecurityQuestion2] = useState("");
+  const [securityAnswer2, setSecurityAnswer2] = useState("");
+  const [securityQuestion3, setSecurityQuestion3] = useState("");
+  const [securityAnswer3, setSecurityAnswer3] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const securityQuestions = [
+    "What was the name of your first pet?",
+    "In which city were you born?",
+    "What was your mother's maiden name?",
+    "What was the name of your elementary school?",
+    "What is your favorite movie?",
+    "What was the make of your first car?",
+    "What is your favorite food?",
+    "What was your childhood nickname?"
+  ];
 
   const checkAdminExists = async () => {
     try {
@@ -46,6 +63,16 @@ const Register = () => {
       return;
     }
 
+    if (!securityQuestion1 || !securityAnswer1 || !securityQuestion2 || !securityAnswer2 || !securityQuestion3 || !securityAnswer3) {
+      toast({
+        title: "Security Questions Required",
+        description: "Please answer all three security questions.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
     // Check if admin already exists when trying to register as admin
     if (role === "admin") {
       const adminExists = await checkAdminExists();
@@ -64,11 +91,19 @@ const Register = () => {
       const userCredential = await registerUser(email, password);
       const user = userCredential.user;
       
-      // Store user role in Firestore
+      // Store user role and security questions in Firestore
       await setDoc(doc(db, "users", user.uid), {
         email: user.email,
         role: role,
         createdAt: new Date(),
+        securityQuestions: {
+          question1: securityQuestion1,
+          answer1: securityAnswer1.toLowerCase().trim(),
+          question2: securityQuestion2,
+          answer2: securityAnswer2.toLowerCase().trim(),
+          question3: securityQuestion3,
+          answer3: securityAnswer3.toLowerCase().trim(),
+        }
       });
 
       // If registering as admin, update system status
@@ -112,7 +147,7 @@ const Register = () => {
             </CardDescription>
           </CardHeader>
           <form onSubmit={handleRegister}>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 max-h-96 overflow-y-auto">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -158,9 +193,74 @@ const Register = () => {
                     <SelectItem value="employee">Employee</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Admin accounts can manage users and access all features.
-                </p>
+              </div>
+
+              {/* Security Questions */}
+              <div className="space-y-4 border-t pt-4">
+                <h3 className="text-sm font-medium text-gray-700">Security Questions (for password recovery)</h3>
+                
+                <div className="space-y-2">
+                  <Label>Question 1</Label>
+                  <Select value={securityQuestion1} onValueChange={setSecurityQuestion1}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a security question" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {securityQuestions.map((question, index) => (
+                        <SelectItem key={index} value={question}>{question}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="text"
+                    placeholder="Your answer"
+                    value={securityAnswer1}
+                    onChange={(e) => setSecurityAnswer1(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Question 2</Label>
+                  <Select value={securityQuestion2} onValueChange={setSecurityQuestion2}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a security question" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {securityQuestions.map((question, index) => (
+                        <SelectItem key={index} value={question}>{question}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="text"
+                    placeholder="Your answer"
+                    value={securityAnswer2}
+                    onChange={(e) => setSecurityAnswer2(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Question 3</Label>
+                  <Select value={securityQuestion3} onValueChange={setSecurityQuestion3}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a security question" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {securityQuestions.map((question, index) => (
+                        <SelectItem key={index} value={question}>{question}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="text"
+                    placeholder="Your answer"
+                    value={securityAnswer3}
+                    onChange={(e) => setSecurityAnswer3(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
