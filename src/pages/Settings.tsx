@@ -184,23 +184,23 @@ const Settings = () => {
     try {
       // Get inventory data
       const inventorySnapshot = await getDocs(collection(db, 'inventory'));
-      const inventoryItems = inventorySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const inventoryItems = inventorySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
       
       const totalProducts = inventoryItems.length;
-      const lowStockItems = inventoryItems.filter(item => 
+      const lowStockItems = inventoryItems.filter((item: any) => 
         item.quantity <= parseInt(lowStockThreshold)
       ).length;
       
       // Get sales data
       const salesSnapshot = await getDocs(collection(db, 'sales'));
-      const salesData = salesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const salesData = salesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
       
       const totalSales = salesData.length;
       
       // Get today's sales
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todaySales = salesData.filter(sale => {
+      const todaySales = salesData.filter((sale: any) => {
         if (!sale.date) return false;
         const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
         return saleDate >= today;
@@ -220,7 +220,7 @@ const Settings = () => {
       
       // Find top selling product (simplified)
       const productSales: Record<string, number> = {};
-      salesData.forEach(sale => {
+      salesData.forEach((sale: any) => {
         if (sale.items && Array.isArray(sale.items)) {
           sale.items.forEach((item: any) => {
             if (item.name) {
