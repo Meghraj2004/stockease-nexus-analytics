@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import {
@@ -185,7 +184,7 @@ const Settings = () => {
     try {
       // Get inventory data
       const inventorySnapshot = await getDocs(collection(db, 'inventory'));
-      const inventoryItems = inventorySnapshot.docs.map(doc => doc.data());
+      const inventoryItems = inventorySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
       const totalProducts = inventoryItems.length;
       const lowStockItems = inventoryItems.filter(item => 
@@ -202,7 +201,8 @@ const Settings = () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const todaySales = salesData.filter(sale => {
-        const saleDate = sale.date?.toDate?.() || new Date(sale.date);
+        if (!sale.date) return false;
+        const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
         return saleDate >= today;
       }).length;
       
@@ -219,11 +219,13 @@ const Settings = () => {
       }));
       
       // Find top selling product (simplified)
-      const productSales = {};
+      const productSales: Record<string, number> = {};
       salesData.forEach(sale => {
-        if (sale.items) {
-          sale.items.forEach(item => {
-            productSales[item.name] = (productSales[item.name] || 0) + item.quantity;
+        if (sale.items && Array.isArray(sale.items)) {
+          sale.items.forEach((item: any) => {
+            if (item.name) {
+              productSales[item.name] = (productSales[item.name] || 0) + (item.quantity || 0);
+            }
           });
         }
       });
