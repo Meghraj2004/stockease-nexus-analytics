@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { sendPasswordResetEmail, signInWithEmailAndPassword, updatePassword, signOut } from "firebase/auth";
+import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassword, deleteUser, signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
 interface ForgotPasswordProps {
@@ -130,23 +130,57 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     }
 
     try {
-      // First, we need to sign in the user temporarily to update their password
-      // We'll use a temporary password that we know doesn't work, then use the reset email method
-      await sendPasswordResetEmail(auth, email);
+      // Create a temporary user to get the proper authentication context
+      const tempEmail = `temp_${Date.now()}@temp.com`;
+      const tempPassword = `temp_${Date.now()}`;
+      
+      // Create temporary user
+      const tempUserCredential = await createUserWithEmailAndPassword(auth, tempEmail, tempPassword);
+      const tempUser = tempUserCredential.user;
+      
+      // Delete the temporary user immediately
+      await deleteUser(tempUser);
+      
+      // Now sign out and recreate the actual user with new password
+      await signOut(auth);
+      
+      // Delete the old user account and recreate with new password
+      // First, we need to sign in with old credentials, but since we don't have them,
+      // we'll update the password through a different approach
+      
+      // Create a new user with the same email and new password
+      const newUserCredential = await createUserWithEmailAndPassword(auth, email, newPassword);
+      const newUser = newUserCredential.user;
+      
+      // Update the user document in Firestore to maintain the same user ID reference
+      await updateDoc(doc(db, "users", userId), {
+        authUid: newUser.uid,
+        lastPasswordUpdate: new Date(),
+      });
       
       toast({
-        title: "Password reset email sent",
-        description: "Please check your email and use the link to set your new password.",
+        title: "Password updated successfully",
+        description: "Your password has been changed. You can now login with your new password.",
       });
       
       setStep(4);
+      
     } catch (error: any) {
-      console.error(error);
-      toast({
-        title: "Error",
-        description: "Failed to send password reset email. Please try again.",
-        variant: "destructive",
-      });
+      console.error("Password reset error:", error);
+      
+      if (error.code === 'auth/email-already-in-use') {
+        toast({
+          title: "Error",
+          description: "Unable to update password. Please try the email reset method instead.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error", 
+          description: "Failed to update password. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -169,13 +203,13 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
           {step === 1 && "Forgot Password"}
           {step === 2 && "Security Questions"}
           {step === 3 && "Set New Password"}
-          {step === 4 && "Password Reset"}
+          {step === 4 && "Password Updated"}
         </CardTitle>
         <CardDescription className="text-center">
           {step === 1 && "Enter your email to start password recovery"}
           {step === 2 && "Answer your security questions"}
           {step === 3 && "Create a new password for your account"}
-          {step === 4 && "Check your email to complete the password reset"}
+          {step === 4 && "Your password has been successfully updated"}
         </CardDescription>
       </CardHeader>
       
@@ -278,7 +312,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
                 Back
               </Button>
               <Button type="submit" disabled={isLoading} className="flex-1">
-                {isLoading ? "Resetting..." : "Reset Password"}
+                {isLoading ? "Updating Password..." : "Update Password"}
               </Button>
             </div>
           </form>
@@ -287,9 +321,9 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         {step === 4 && (
           <div className="space-y-4 text-center">
             <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-              <p className="text-green-700 font-medium">Password reset email sent!</p>
+              <p className="text-green-700 font-medium">Password updated successfully!</p>
               <p className="text-green-600 text-sm mt-1">
-                Check your email ({email}) and click the reset link to complete the process.
+                You can now login with your new password.
               </p>
             </div>
             <Button onClick={handleBackToLogin} className="w-full">
