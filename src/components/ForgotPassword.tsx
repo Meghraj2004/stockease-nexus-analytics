@@ -7,9 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { collection, query, where, getDocs, updateDoc, doc } from "firebase/firestore";
-import { updatePassword } from "firebase/auth";
+import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { signInWithEmailAndPassword } from "firebase/auth";
 
 interface ForgotPasswordProps {
   onBack: () => void;
@@ -17,11 +16,9 @@ interface ForgotPasswordProps {
 
 const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
   const [email, setEmail] = useState("");
-  const [step, setStep] = useState(1); // 1: Email, 2: Security Questions, 3: Reset Password
+  const [step, setStep] = useState(1); // 1: Email, 2: Security Questions, 3: Reset Sent
   const [securityQuestions, setSecurityQuestions] = useState<any>(null);
   const [answers, setAnswers] = useState({ answer1: "", answer2: "", answer3: "" });
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [userId, setUserId] = useState("");
   const { toast } = useToast();
@@ -82,10 +79,13 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       const answer3Match = answers.answer3.toLowerCase().trim() === securityQuestions.answer3;
 
       if (answer1Match && answer2Match && answer3Match) {
+        // Send password reset email using Firebase Auth
+        await sendPasswordResetEmail(auth, email);
+        
         setStep(3);
         toast({
-          title: "Security questions verified",
-          description: "You can now reset your password.",
+          title: "Password reset email sent",
+          description: "Check your email for password reset instructions.",
         });
       } else {
         toast({
@@ -98,7 +98,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       console.error(error);
       toast({
         title: "Error",
-        description: "Failed to verify security questions.",
+        description: "Failed to send password reset email.",
         variant: "destructive",
       });
     } finally {
@@ -106,55 +106,12 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     }
   };
 
-  const handlePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    if (newPassword !== confirmPassword) {
-      toast({
-        title: "Passwords don't match",
-        description: "Please ensure both passwords match.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      toast({
-        title: "Password too short",
-        description: "Password must be at least 6 characters long.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      // Note: In a real application, you would need to implement a secure way to update the password
-      // This is a simplified implementation
-      toast({
-        title: "Password Reset Successful",
-        description: "Your password has been reset successfully. Please login with your new password.",
-      });
-      
-      // Reset form and go back to login
-      setStep(1);
-      setEmail("");
-      setAnswers({ answer1: "", answer2: "", answer3: "" });
-      setNewPassword("");
-      setConfirmPassword("");
-      onBack();
-    } catch (error: any) {
-      console.error(error);
-      toast({
-        title: "Error",
-        description: "Failed to reset password. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+  const handleBackToLogin = () => {
+    // Reset form and go back to login
+    setStep(1);
+    setEmail("");
+    setAnswers({ answer1: "", answer2: "", answer3: "" });
+    onBack();
   };
 
   return (
@@ -163,12 +120,12 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         <CardTitle className="text-2xl font-bold text-center">
           {step === 1 && "Forgot Password"}
           {step === 2 && "Security Questions"}
-          {step === 3 && "Reset Password"}
+          {step === 3 && "Reset Email Sent"}
         </CardTitle>
         <CardDescription className="text-center">
           {step === 1 && "Enter your email to start password recovery"}
           {step === 2 && "Answer your security questions"}
-          {step === 3 && "Enter your new password"}
+          {step === 3 && "Check your email for password reset instructions"}
         </CardDescription>
       </CardHeader>
       
@@ -241,39 +198,17 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         )}
 
         {step === 3 && (
-          <form onSubmit={handlePasswordReset} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="newPassword">New Password</Label>
-              <Input
-                id="newPassword"
-                type="password"
-                placeholder="Enter new password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                minLength={6}
-              />
+          <div className="space-y-4 text-center">
+            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+              <p className="text-green-700 font-medium">Password reset email sent!</p>
+              <p className="text-green-600 text-sm mt-1">
+                Check your email ({email}) for instructions to reset your password.
+              </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm New Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="Confirm new password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => setStep(2)} className="flex-1">
-                Back
-              </Button>
-              <Button type="submit" disabled={isLoading} className="flex-1">
-                {isLoading ? "Resetting..." : "Reset Password"}
-              </Button>
-            </div>
-          </form>
+            <Button onClick={handleBackToLogin} className="w-full">
+              Back to Login
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>
