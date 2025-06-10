@@ -28,11 +28,13 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     setIsLoading(true);
 
     try {
+      console.log("Searching for email:", email);
       // Check if email exists in users collection
       const usersQuery = query(collection(db, "users"), where("email", "==", email));
       const querySnapshot = await getDocs(usersQuery);
 
       if (querySnapshot.empty) {
+        console.log("No user found with email:", email);
         toast({
           title: "Email not found",
           description: "No account found with this email address.",
@@ -44,8 +46,10 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
 
       const userDocument = querySnapshot.docs[0];
       const userData = userDocument.data();
+      console.log("User found:", userData);
       
       if (!userData.securityQuestions) {
+        console.log("No security questions found for user");
         toast({
           title: "Security questions not set",
           description: "This account doesn't have security questions set up.",
@@ -58,6 +62,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       setSecurityQuestions(userData.securityQuestions);
       setUserDoc({ id: userDocument.id, ...userData });
       setStep(2);
+      console.log("Moving to step 2 - security questions");
     } catch (error: any) {
       console.error("Email verification error:", error);
       toast({
@@ -75,18 +80,26 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     setIsLoading(true);
 
     try {
+      console.log("Verifying security answers...");
+      console.log("User answers:", answers);
+      console.log("Stored answers:", securityQuestions);
+      
       // Check if all 3 answers match exactly (case-insensitive)
       const answer1Match = answers.answer1.toLowerCase().trim() === securityQuestions.answer1.toLowerCase().trim();
       const answer2Match = answers.answer2.toLowerCase().trim() === securityQuestions.answer2.toLowerCase().trim();
       const answer3Match = answers.answer3.toLowerCase().trim() === securityQuestions.answer3.toLowerCase().trim();
 
+      console.log("Answer matches:", { answer1Match, answer2Match, answer3Match });
+
       if (answer1Match && answer2Match && answer3Match) {
         setStep(3);
+        console.log("Security questions verified, moving to step 3");
         toast({
           title: "Security questions verified",
           description: "Please enter your new password.",
         });
       } else {
+        console.log("Security answers don't match");
         toast({
           title: "Answers didn't match our records",
           description: "Please try again with the correct answers.",
@@ -130,12 +143,17 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     }
 
     try {
-      // Update the password in Firestore directly
-      // Since we've verified identity through security questions, we can safely update
-      await updateDoc(doc(db, "users", userDoc.id), {
+      console.log("Updating password for user:", userDoc.id);
+      
+      // Update the password in Firestore
+      const userRef = doc(db, "users", userDoc.id);
+      await updateDoc(userRef, {
         password: newPassword,
-        lastPasswordUpdate: new Date(),
+        lastPasswordUpdate: new Date().toISOString(),
+        passwordResetAt: new Date().toISOString()
       });
+
+      console.log("Password updated successfully in database");
 
       toast({
         title: "Password updated successfully",
@@ -146,9 +164,15 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       
     } catch (error: any) {
       console.error("Password reset error:", error);
+      console.error("Error details:", {
+        code: error.code,
+        message: error.message,
+        userDocId: userDoc?.id
+      });
+      
       toast({
         title: "Error", 
-        description: "Failed to update password. Please try again.",
+        description: `Failed to update password: ${error.message || 'Please try again.'}`,
         variant: "destructive",
       });
     } finally {
