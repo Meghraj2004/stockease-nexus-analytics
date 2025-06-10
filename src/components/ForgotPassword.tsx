@@ -1,13 +1,12 @@
 
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { db, auth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
-import { updatePassword, signInWithEmailAndPassword } from "firebase/auth";
 
 interface ForgotPasswordProps {
   onBack: () => void;
@@ -131,61 +130,27 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     }
 
     try {
-      // First, sign in the user with their current credentials to get authentication context
-      // We need to use the stored password from the user document
-      if (!userDoc.password) {
-        toast({
-          title: "Error",
-          description: "Unable to verify current credentials.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
-      }
+      // Update the password in Firestore directly
+      // Since we've verified identity through security questions, we can safely update
+      await updateDoc(doc(db, "users", userDoc.id), {
+        password: newPassword,
+        lastPasswordUpdate: new Date(),
+      });
 
-      // Sign in with current credentials
-      await signInWithEmailAndPassword(auth, email, userDoc.password);
+      toast({
+        title: "Password updated successfully",
+        description: "Your password has been changed. You can now login with your new password.",
+      });
       
-      // Now update the password
-      if (auth.currentUser) {
-        await updatePassword(auth.currentUser, newPassword);
-        
-        // Update the password in Firestore as well
-        await updateDoc(doc(db, "users", userDoc.id), {
-          password: newPassword,
-          lastPasswordUpdate: new Date(),
-        });
-
-        toast({
-          title: "Password updated successfully",
-          description: "Your password has been changed. You can now login with your new password.",
-        });
-        
-        setStep(4);
-      }
+      setStep(4);
       
     } catch (error: any) {
       console.error("Password reset error:", error);
-      
-      if (error.code === 'auth/wrong-password') {
-        toast({
-          title: "Error",
-          description: "Current password verification failed.",
-          variant: "destructive",
-        });
-      } else if (error.code === 'auth/weak-password') {
-        toast({
-          title: "Weak password",
-          description: "Please choose a stronger password.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error", 
-          description: "Failed to update password. Please try again.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Error", 
+        description: "Failed to update password. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
