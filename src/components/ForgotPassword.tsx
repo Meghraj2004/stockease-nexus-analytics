@@ -1,14 +1,13 @@
 
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassword, deleteUser, signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { updatePassword, signInWithEmailAndPassword } from "firebase/auth";
 
 interface ForgotPasswordProps {
   onBack: () => void;
@@ -22,7 +21,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [userId, setUserId] = useState("");
+  const [userDoc, setUserDoc] = useState<any>(null);
   const { toast } = useToast();
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -30,6 +29,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     setIsLoading(true);
 
     try {
+      // Check if email exists in users collection
       const usersQuery = query(collection(db, "users"), where("email", "==", email));
       const querySnapshot = await getDocs(usersQuery);
 
@@ -43,8 +43,8 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         return;
       }
 
-      const userDoc = querySnapshot.docs[0];
-      const userData = userDoc.data();
+      const userDocument = querySnapshot.docs[0];
+      const userData = userDocument.data();
       
       if (!userData.securityQuestions) {
         toast({
@@ -57,10 +57,10 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       }
 
       setSecurityQuestions(userData.securityQuestions);
-      setUserId(userDoc.id);
+      setUserDoc({ id: userDocument.id, ...userData });
       setStep(2);
     } catch (error: any) {
-      console.error(error);
+      console.error("Email verification error:", error);
       toast({
         title: "Error",
         description: "Failed to verify email. Please try again.",
@@ -76,9 +76,10 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     setIsLoading(true);
 
     try {
-      const answer1Match = answers.answer1.toLowerCase().trim() === securityQuestions.answer1;
-      const answer2Match = answers.answer2.toLowerCase().trim() === securityQuestions.answer2;
-      const answer3Match = answers.answer3.toLowerCase().trim() === securityQuestions.answer3;
+      // Check if all 3 answers match exactly (case-insensitive)
+      const answer1Match = answers.answer1.toLowerCase().trim() === securityQuestions.answer1.toLowerCase().trim();
+      const answer2Match = answers.answer2.toLowerCase().trim() === securityQuestions.answer2.toLowerCase().trim();
+      const answer3Match = answers.answer3.toLowerCase().trim() === securityQuestions.answer3.toLowerCase().trim();
 
       if (answer1Match && answer2Match && answer3Match) {
         setStep(3);
@@ -88,13 +89,13 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         });
       } else {
         toast({
-          title: "Incorrect answers",
-          description: "One or more security question answers are incorrect.",
+          title: "Answers didn't match our records",
+          description: "Please try again with the correct answers.",
           variant: "destructive",
         });
       }
     } catch (error: any) {
-      console.error(error);
+      console.error("Security questions verification error:", error);
       toast({
         title: "Error",
         description: "Failed to verify security questions.",
@@ -130,48 +131,52 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     }
 
     try {
-      // Create a temporary user to get the proper authentication context
-      const tempEmail = `temp_${Date.now()}@temp.com`;
-      const tempPassword = `temp_${Date.now()}`;
+      // First, sign in the user with their current credentials to get authentication context
+      // We need to use the stored password from the user document
+      if (!userDoc.password) {
+        toast({
+          title: "Error",
+          description: "Unable to verify current credentials.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Sign in with current credentials
+      await signInWithEmailAndPassword(auth, email, userDoc.password);
       
-      // Create temporary user
-      const tempUserCredential = await createUserWithEmailAndPassword(auth, tempEmail, tempPassword);
-      const tempUser = tempUserCredential.user;
-      
-      // Delete the temporary user immediately
-      await deleteUser(tempUser);
-      
-      // Now sign out and recreate the actual user with new password
-      await signOut(auth);
-      
-      // Delete the old user account and recreate with new password
-      // First, we need to sign in with old credentials, but since we don't have them,
-      // we'll update the password through a different approach
-      
-      // Create a new user with the same email and new password
-      const newUserCredential = await createUserWithEmailAndPassword(auth, email, newPassword);
-      const newUser = newUserCredential.user;
-      
-      // Update the user document in Firestore to maintain the same user ID reference
-      await updateDoc(doc(db, "users", userId), {
-        authUid: newUser.uid,
-        lastPasswordUpdate: new Date(),
-      });
-      
-      toast({
-        title: "Password updated successfully",
-        description: "Your password has been changed. You can now login with your new password.",
-      });
-      
-      setStep(4);
+      // Now update the password
+      if (auth.currentUser) {
+        await updatePassword(auth.currentUser, newPassword);
+        
+        // Update the password in Firestore as well
+        await updateDoc(doc(db, "users", userDoc.id), {
+          password: newPassword,
+          lastPasswordUpdate: new Date(),
+        });
+
+        toast({
+          title: "Password updated successfully",
+          description: "Your password has been changed. You can now login with your new password.",
+        });
+        
+        setStep(4);
+      }
       
     } catch (error: any) {
       console.error("Password reset error:", error);
       
-      if (error.code === 'auth/email-already-in-use') {
+      if (error.code === 'auth/wrong-password') {
         toast({
           title: "Error",
-          description: "Unable to update password. Please try the email reset method instead.",
+          description: "Current password verification failed.",
+          variant: "destructive",
+        });
+      } else if (error.code === 'auth/weak-password') {
+        toast({
+          title: "Weak password",
+          description: "Please choose a stronger password.",
           variant: "destructive",
         });
       } else {
@@ -193,6 +198,8 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     setAnswers({ answer1: "", answer2: "", answer3: "" });
     setNewPassword("");
     setConfirmPassword("");
+    setSecurityQuestions(null);
+    setUserDoc(null);
     onBack();
   };
 
@@ -206,8 +213,8 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
           {step === 4 && "Password Updated"}
         </CardTitle>
         <CardDescription className="text-center">
-          {step === 1 && "Enter your email to start password recovery"}
-          {step === 2 && "Answer your security questions"}
+          {step === 1 && "Enter your registered email address"}
+          {step === 2 && "Answer your security questions to verify your identity"}
           {step === 3 && "Create a new password for your account"}
           {step === 4 && "Your password has been successfully updated"}
         </CardDescription>
