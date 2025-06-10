@@ -5,11 +5,16 @@ service cloud.firestore {
     // Users can read/write their own user document
     // Admin users can read all user documents for user management
     // Allow reading users collection for forgot password functionality (by email query)
+    // Allow password updates for forgot password flow (after security question verification)
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
       allow read: if request.auth != null;
       allow read: if request.auth == null && resource.data.keys().hasAny(['email', 'securityQuestions']);
       allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Allow password updates for forgot password functionality (unauthenticated)
+      allow update: if request.auth == null && 
+        request.resource.data.keys().hasOnly(['password', 'lastPasswordUpdate', 'passwordResetAt']) &&
+        resource.data.keys().hasAny(['email', 'securityQuestions']);
     }
     
     // Users can read/write their own userSettings document
