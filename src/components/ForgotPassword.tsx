@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
-import { sendPasswordResetEmail } from "firebase/auth";
+import { signInWithEmailAndPassword, updatePassword, signOut } from "firebase/auth";
+import bcrypt from "bcryptjs";
 
 interface ForgotPasswordProps {
   onBack: () => void;
@@ -15,9 +16,11 @@ interface ForgotPasswordProps {
 
 const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
   const [email, setEmail] = useState("");
-  const [step, setStep] = useState(1); // 1: Email, 2: Security Questions, 3: Password Reset Email Sent
+  const [step, setStep] = useState(1); // 1: Email, 2: Security Questions, 3: Set New Password
   const [securityQuestions, setSecurityQuestions] = useState<any>(null);
   const [answers, setAnswers] = useState({ answer1: "", answer2: "", answer3: "" });
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [userDoc, setUserDoc] = useState<any>(null);
   const { toast } = useToast();
@@ -91,33 +94,13 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       console.log("Answer matches:", { answer1Match, answer2Match, answer3Match });
 
       if (answer1Match && answer2Match && answer3Match) {
-        // Security questions verified, now send password reset email
-        console.log("Security questions verified, sending password reset email");
-        
-        try {
-          await sendPasswordResetEmail(auth, email);
-          console.log("Password reset email sent successfully");
-          
-          // Update the database to mark that password reset was initiated
-          const userRef = doc(db, "users", userDoc.id);
-          await updateDoc(userRef, {
-            passwordResetInitiated: new Date().toISOString(),
-            passwordResetMethod: "security_questions"
-          });
-          
-          setStep(3);
-          toast({
-            title: "Password reset email sent",
-            description: "Check your email for a password reset link from Firebase.",
-          });
-        } catch (emailError: any) {
-          console.error("Error sending password reset email:", emailError);
-          toast({
-            title: "Failed to send reset email",
-            description: "Please try again or contact support.",
-            variant: "destructive",
-          });
-        }
+        // Security questions verified, move to password reset step
+        console.log("Security questions verified, moving to password reset");
+        setStep(3);
+        toast({
+          title: "Security questions verified",
+          description: "Please set your new password.",
+        });
       } else {
         console.log("Security answers don't match");
         toast({
@@ -138,11 +121,81 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     }
   };
 
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Passwords don't match",
+        description: "Please ensure both passwords are the same.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast({
+        title: "Password too short",
+        description: "Password must be at least 6 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      console.log("Updating password for user:", userDoc.email);
+      
+      // Hash the new password for Firestore
+      const hashedPassword = await bcrypt.hash(newPassword, 12);
+      
+      // Sign in temporarily with current password to update Firebase Auth
+      const userCredential = await signInWithEmailAndPassword(auth, userDoc.email, userDoc.password);
+      
+      // Update password in Firebase Auth
+      await updatePassword(userCredential.user, newPassword);
+      
+      // Update password in Firestore
+      const userRef = doc(db, "users", userDoc.id);
+      await updateDoc(userRef, {
+        password: hashedPassword,
+        lastPasswordUpdate: new Date().toISOString(),
+        passwordResetAt: new Date().toISOString()
+      });
+      
+      // Sign out the user
+      await signOut(auth);
+      
+      console.log("Password updated successfully");
+      
+      toast({
+        title: "Password updated successfully",
+        description: "You can now login with your new password.",
+      });
+      
+      // Reset form and go back to login
+      handleBackToLogin();
+      
+    } catch (error: any) {
+      console.error("Password update error:", error);
+      toast({
+        title: "Failed to update password",
+        description: error.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleBackToLogin = () => {
     // Reset form and go back to login
     setStep(1);
     setEmail("");
     setAnswers({ answer1: "", answer2: "", answer3: "" });
+    setNewPassword("");
+    setConfirmPassword("");
     setSecurityQuestions(null);
     setUserDoc(null);
     onBack();
@@ -154,12 +207,12 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         <CardTitle className="text-2xl font-bold text-center">
           {step === 1 && "Forgot Password"}
           {step === 2 && "Security Questions"}
-          {step === 3 && "Check Your Email"}
+          {step === 3 && "Set New Password"}
         </CardTitle>
         <CardDescription className="text-center">
           {step === 1 && "Enter your registered email address"}
           {step === 2 && "Answer your security questions to verify your identity"}
-          {step === 3 && "We've sent you a password reset link"}
+          {step === 3 && "Enter your new password"}
         </CardDescription>
       </CardHeader>
       
@@ -232,20 +285,40 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         )}
 
         {step === 3 && (
-          <div className="space-y-4 text-center">
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-blue-700 font-medium">Password reset email sent!</p>
-              <p className="text-blue-600 text-sm mt-1">
-                Check your email inbox for a password reset link from Firebase. Click the link to set your new password.
-              </p>
-              <p className="text-blue-600 text-sm mt-2">
-                If you don't see the email, check your spam folder.
-              </p>
+          <form onSubmit={handlePasswordReset} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">New Password</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                placeholder="Enter new password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                minLength={6}
+              />
             </div>
-            <Button onClick={handleBackToLogin} className="w-full">
-              Back to Login
-            </Button>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder="Confirm new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={6}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => setStep(2)} className="flex-1">
+                Back
+              </Button>
+              <Button type="submit" disabled={isLoading} className="flex-1">
+                {isLoading ? "Updating..." : "Update Password"}
+              </Button>
+            </div>
+          </form>
         )}
       </CardContent>
     </Card>
