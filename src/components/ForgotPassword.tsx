@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
-import { signInWithEmailAndPassword, updatePassword, signOut } from "firebase/auth";
+import { sendPasswordResetEmail } from "firebase/auth";
 
 interface ForgotPasswordProps {
   onBack: () => void;
@@ -15,11 +15,9 @@ interface ForgotPasswordProps {
 
 const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
   const [email, setEmail] = useState("");
-  const [step, setStep] = useState(1); // 1: Email, 2: Security Questions, 3: New Password, 4: Success
+  const [step, setStep] = useState(1); // 1: Email, 2: Security Questions, 3: Password Reset Email Sent
   const [securityQuestions, setSecurityQuestions] = useState<any>(null);
   const [answers, setAnswers] = useState({ answer1: "", answer2: "", answer3: "" });
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [userDoc, setUserDoc] = useState<any>(null);
   const { toast } = useToast();
@@ -93,12 +91,33 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       console.log("Answer matches:", { answer1Match, answer2Match, answer3Match });
 
       if (answer1Match && answer2Match && answer3Match) {
-        setStep(3);
-        console.log("Security questions verified, moving to step 3");
-        toast({
-          title: "Security questions verified",
-          description: "Please enter your new password.",
-        });
+        // Security questions verified, now send password reset email
+        console.log("Security questions verified, sending password reset email");
+        
+        try {
+          await sendPasswordResetEmail(auth, email);
+          console.log("Password reset email sent successfully");
+          
+          // Update the database to mark that password reset was initiated
+          const userRef = doc(db, "users", userDoc.id);
+          await updateDoc(userRef, {
+            passwordResetInitiated: new Date().toISOString(),
+            passwordResetMethod: "security_questions"
+          });
+          
+          setStep(3);
+          toast({
+            title: "Password reset email sent",
+            description: "Check your email for a password reset link from Firebase.",
+          });
+        } catch (emailError: any) {
+          console.error("Error sending password reset email:", emailError);
+          toast({
+            title: "Failed to send reset email",
+            description: "Please try again or contact support.",
+            variant: "destructive",
+          });
+        }
       } else {
         console.log("Security answers don't match");
         toast({
@@ -119,112 +138,11 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     }
   };
 
-  const handlePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    if (newPassword !== confirmPassword) {
-      toast({
-        title: "Passwords don't match",
-        description: "Please ensure both passwords match.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      toast({
-        title: "Password too short",
-        description: "Password must be at least 6 characters long.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      console.log("Starting password update process for user:", userDoc.email);
-      
-      // Step 1: Temporarily sign in with current password to get authentication
-      console.log("Step 1: Signing in with current password");
-      const userCredential = await signInWithEmailAndPassword(auth, userDoc.email, userDoc.password);
-      const user = userCredential.user;
-      console.log("Successfully signed in user for password update");
-
-      // Step 2: Update password in Firebase Authentication
-      console.log("Step 2: Updating password in Firebase Authentication");
-      await updatePassword(user, newPassword);
-      console.log("Password updated successfully in Firebase Authentication");
-
-      // Step 3: Update password in Firestore
-      console.log("Step 3: Updating password in Firestore");
-      const userRef = doc(db, "users", userDoc.id);
-      await updateDoc(userRef, {
-        password: newPassword,
-        lastPasswordUpdate: new Date().toISOString(),
-        passwordResetAt: new Date().toISOString()
-      });
-      console.log("Password updated successfully in Firestore");
-
-      // Step 4: Sign out the user
-      console.log("Step 4: Signing out user");
-      await signOut(auth);
-      console.log("User signed out successfully");
-
-      toast({
-        title: "Password updated successfully",
-        description: "Your password has been changed in both Firebase Authentication and database. You can now login with your new password.",
-      });
-      
-      setStep(4);
-      
-    } catch (error: any) {
-      console.error("Password reset error:", error);
-      console.error("Error details:", {
-        code: error.code,
-        message: error.message,
-        userDocId: userDoc?.id,
-        userEmail: userDoc?.email
-      });
-      
-      // Handle specific Firebase Auth errors
-      let errorMessage = "Failed to update password. Please try again.";
-      
-      if (error.code === 'auth/wrong-password') {
-        errorMessage = "Current password in database doesn't match Firebase Authentication. Please contact support.";
-      } else if (error.code === 'auth/user-not-found') {
-        errorMessage = "User not found in Firebase Authentication. Please contact support.";
-      } else if (error.code === 'auth/weak-password') {
-        errorMessage = "Password is too weak. Please choose a stronger password.";
-      } else if (error.code === 'auth/requires-recent-login') {
-        errorMessage = "Authentication session expired. Please try the process again.";
-      }
-      
-      toast({
-        title: "Password Update Failed", 
-        description: errorMessage,
-        variant: "destructive",
-      });
-
-      // Try to sign out in case of partial success
-      try {
-        await signOut(auth);
-      } catch (signOutError) {
-        console.error("Error signing out after failed password update:", signOutError);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleBackToLogin = () => {
     // Reset form and go back to login
     setStep(1);
     setEmail("");
     setAnswers({ answer1: "", answer2: "", answer3: "" });
-    setNewPassword("");
-    setConfirmPassword("");
     setSecurityQuestions(null);
     setUserDoc(null);
     onBack();
@@ -236,14 +154,12 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         <CardTitle className="text-2xl font-bold text-center">
           {step === 1 && "Forgot Password"}
           {step === 2 && "Security Questions"}
-          {step === 3 && "Set New Password"}
-          {step === 4 && "Password Updated"}
+          {step === 3 && "Check Your Email"}
         </CardTitle>
         <CardDescription className="text-center">
           {step === 1 && "Enter your registered email address"}
           {step === 2 && "Answer your security questions to verify your identity"}
-          {step === 3 && "Create a new password for your account"}
-          {step === 4 && "Your password has been successfully updated"}
+          {step === 3 && "We've sent you a password reset link"}
         </CardDescription>
       </CardHeader>
       
@@ -309,55 +225,21 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
                 Back
               </Button>
               <Button type="submit" disabled={isLoading} className="flex-1">
-                {isLoading ? "Verifying..." : "Verify Answers"}
+                {isLoading ? "Verifying..." : "Reset Password"}
               </Button>
             </div>
           </form>
         )}
 
         {step === 3 && (
-          <form onSubmit={handlePasswordReset} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="newPassword">New Password</Label>
-              <Input
-                id="newPassword"
-                type="password"
-                placeholder="Enter new password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                minLength={6}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm New Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="Confirm new password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                minLength={6}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => setStep(2)} className="flex-1">
-                Back
-              </Button>
-              <Button type="submit" disabled={isLoading} className="flex-1">
-                {isLoading ? "Updating Password..." : "Update Password"}
-              </Button>
-            </div>
-          </form>
-        )}
-
-        {step === 4 && (
           <div className="space-y-4 text-center">
-            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-              <p className="text-green-700 font-medium">Password updated successfully!</p>
-              <p className="text-green-600 text-sm mt-1">
-                Your password has been updated in both Firebase Authentication and the database. You can now login with your new password.
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-blue-700 font-medium">Password reset email sent!</p>
+              <p className="text-blue-600 text-sm mt-1">
+                Check your email inbox for a password reset link from Firebase. Click the link to set your new password.
+              </p>
+              <p className="text-blue-600 text-sm mt-2">
+                If you don't see the email, check your spam folder.
               </p>
             </div>
             <Button onClick={handleBackToLogin} className="w-full">
