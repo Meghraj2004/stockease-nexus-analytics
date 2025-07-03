@@ -1,13 +1,12 @@
 
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { db, auth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
-import { signInWithEmailAndPassword, updatePassword, signOut } from "firebase/auth";
 import bcrypt from "bcryptjs";
 
 interface ForgotPasswordProps {
@@ -150,13 +149,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       // Hash the new password for Firestore
       const hashedPassword = await bcrypt.hash(newPassword, 12);
       
-      // Sign in temporarily with current password to update Firebase Auth
-      const userCredential = await signInWithEmailAndPassword(auth, userDoc.email, userDoc.password);
-      
-      // Update password in Firebase Auth
-      await updatePassword(userCredential.user, newPassword);
-      
-      // Update password in Firestore
+      // Update password in Firestore only
       const userRef = doc(db, "users", userDoc.id);
       await updateDoc(userRef, {
         password: hashedPassword,
@@ -164,10 +157,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         passwordResetAt: new Date().toISOString()
       });
       
-      // Sign out the user
-      await signOut(auth);
-      
-      console.log("Password updated successfully");
+      console.log("Password updated successfully in Firestore");
       
       toast({
         title: "Password updated successfully",
