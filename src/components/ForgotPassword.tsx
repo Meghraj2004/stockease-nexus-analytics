@@ -1,12 +1,13 @@
 
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
+import { signInWithEmailAndPassword, updatePassword, signOut } from "firebase/auth";
 
 interface ForgotPasswordProps {
   onBack: () => void;
@@ -143,21 +144,37 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     }
 
     try {
-      console.log("Updating password for user:", userDoc.id);
+      console.log("Starting password update process for user:", userDoc.email);
       
-      // Update the password in Firestore
+      // Step 1: Temporarily sign in with current password to get authentication
+      console.log("Step 1: Signing in with current password");
+      const userCredential = await signInWithEmailAndPassword(auth, userDoc.email, userDoc.password);
+      const user = userCredential.user;
+      console.log("Successfully signed in user for password update");
+
+      // Step 2: Update password in Firebase Authentication
+      console.log("Step 2: Updating password in Firebase Authentication");
+      await updatePassword(user, newPassword);
+      console.log("Password updated successfully in Firebase Authentication");
+
+      // Step 3: Update password in Firestore
+      console.log("Step 3: Updating password in Firestore");
       const userRef = doc(db, "users", userDoc.id);
       await updateDoc(userRef, {
         password: newPassword,
         lastPasswordUpdate: new Date().toISOString(),
         passwordResetAt: new Date().toISOString()
       });
+      console.log("Password updated successfully in Firestore");
 
-      console.log("Password updated successfully in database");
+      // Step 4: Sign out the user
+      console.log("Step 4: Signing out user");
+      await signOut(auth);
+      console.log("User signed out successfully");
 
       toast({
         title: "Password updated successfully",
-        description: "Your password has been changed. You can now login with your new password.",
+        description: "Your password has been changed in both Firebase Authentication and database. You can now login with your new password.",
       });
       
       setStep(4);
@@ -167,14 +184,35 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       console.error("Error details:", {
         code: error.code,
         message: error.message,
-        userDocId: userDoc?.id
+        userDocId: userDoc?.id,
+        userEmail: userDoc?.email
       });
       
+      // Handle specific Firebase Auth errors
+      let errorMessage = "Failed to update password. Please try again.";
+      
+      if (error.code === 'auth/wrong-password') {
+        errorMessage = "Current password in database doesn't match Firebase Authentication. Please contact support.";
+      } else if (error.code === 'auth/user-not-found') {
+        errorMessage = "User not found in Firebase Authentication. Please contact support.";
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = "Password is too weak. Please choose a stronger password.";
+      } else if (error.code === 'auth/requires-recent-login') {
+        errorMessage = "Authentication session expired. Please try the process again.";
+      }
+      
       toast({
-        title: "Error", 
-        description: `Failed to update password: ${error.message || 'Please try again.'}`,
+        title: "Password Update Failed", 
+        description: errorMessage,
         variant: "destructive",
       });
+
+      // Try to sign out in case of partial success
+      try {
+        await signOut(auth);
+      } catch (signOutError) {
+        console.error("Error signing out after failed password update:", signOutError);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -319,7 +357,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
             <div className="p-4 bg-green-50 rounded-lg border border-green-200">
               <p className="text-green-700 font-medium">Password updated successfully!</p>
               <p className="text-green-600 text-sm mt-1">
-                You can now login with your new password.
+                Your password has been updated in both Firebase Authentication and the database. You can now login with your new password.
               </p>
             </div>
             <Button onClick={handleBackToLogin} className="w-full">
