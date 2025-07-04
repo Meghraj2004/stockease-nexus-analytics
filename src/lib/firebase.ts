@@ -28,64 +28,7 @@ export const registerUser = async (email: string, password: string) => {
 };
 
 export const loginUser = async (email: string, password: string) => {
-  try {
-    // First try Firebase Auth
-    return await signInWithEmailAndPassword(auth, email, password);
-  } catch (error: any) {
-    console.log("Firebase Auth failed, checking Firestore...", error.code);
-    
-    // If Firebase Auth fails, check Firestore for custom password
-    if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-      try {
-        console.log("Attempting Firestore authentication for:", email);
-        
-        // Query user by email in Firestore
-        const usersQuery = query(collection(db, "users"), where("email", "==", email));
-        const querySnapshot = await getDocs(usersQuery);
-        
-        if (!querySnapshot.empty) {
-          const userDoc = querySnapshot.docs[0];
-          const userData = userDoc.data();
-          
-          console.log("Found user in Firestore, checking password...");
-          
-          // Check if the password matches the hashed password in Firestore
-          if (userData.password && await bcrypt.compare(password, userData.password)) {
-            console.log("Firestore password matches! Creating Firebase Auth user...");
-            
-            // Password matches, now we need to update Firebase Auth with the new password
-            // Since we can't update Firebase Auth password without being signed in,
-            // we'll create a new user with the same email and new password
-            try {
-              // Try to create user (this will fail if user already exists in Firebase Auth)
-              const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-              console.log("Created new Firebase Auth user");
-              return userCredential;
-            } catch (createError: any) {
-              if (createError.code === 'auth/email-already-in-use') {
-                // User exists in Firebase Auth but password doesn't match
-                // This is a complex scenario - we need to guide user to reset via Firebase
-                throw new Error("Please use the standard password reset option or contact support.");
-              }
-              throw createError;
-            }
-          } else {
-            console.log("Firestore password doesn't match");
-            throw new Error("Invalid email or password.");
-          }
-        } else {
-          console.log("User not found in Firestore");
-          throw new Error("Invalid email or password.");
-        }
-      } catch (firestoreError: any) {
-        console.error("Firestore authentication error:", firestoreError);
-        throw new Error(firestoreError.message || "Authentication failed.");
-      }
-    } else {
-      // Re-throw the original Firebase error if it's not a credential issue
-      throw error;
-    }
-  }
+  return signInWithEmailAndPassword(auth, email, password);
 };
 
 export const logoutUser = async () => {

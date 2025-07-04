@@ -1,12 +1,13 @@
+
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { db, auth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
-import { updatePassword, signInWithEmailAndPassword } from "firebase/auth";
+import { sendPasswordResetEmail, getAuth } from "firebase/auth";
 import bcrypt from "bcryptjs";
 
 interface ForgotPasswordProps {
@@ -15,27 +16,26 @@ interface ForgotPasswordProps {
 
 const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
   const [email, setEmail] = useState("");
-  const [step, setStep] = useState(1); // 1: Email, 2: Security Questions, 3: Set New Password
-  const [securityQuestions, setSecurityQuestions] = useState<any>(null);
-  const [answers, setAnswers] = useState({ answer1: "", answer2: "", answer3: "" });
+  const [step, setStep] = useState(1);
+  const [securityQuestion, setSecurityQuestion] = useState("");
+  const [userAnswer, setUserAnswer] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [userDoc, setUserDoc] = useState<any>(null);
   const { toast } = useToast();
+  const auth = getAuth();
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      console.log("Searching for email:", email);
       // Check if email exists in users collection
       const usersQuery = query(collection(db, "users"), where("email", "==", email));
       const querySnapshot = await getDocs(usersQuery);
 
       if (querySnapshot.empty) {
-        console.log("No user found with email:", email);
         toast({
           title: "Email not found",
           description: "No account found with this email address.",
@@ -47,23 +47,25 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
 
       const userDocument = querySnapshot.docs[0];
       const userData = userDocument.data();
-      console.log("User found:", userData);
       
-      if (!userData.securityQuestions) {
-        console.log("No security questions found for user");
+      if (!userData.securityQuestion || !userData.securityAnswer) {
         toast({
-          title: "Security questions not set",
-          description: "This account doesn't have security questions set up.",
+          title: "Security question not set",
+          description: "This account doesn't have a security question set up.",
           variant: "destructive",
         });
         setIsLoading(false);
         return;
       }
 
-      setSecurityQuestions(userData.securityQuestions);
+      setSecurityQuestion(userData.securityQuestion);
       setUserDoc({ id: userDocument.id, ...userData });
       setStep(2);
-      console.log("Moving to step 2 - security questions");
+      
+      toast({
+        title: "Email verified! 📩",
+        description: "Please answer your security question to continue.",
+      });
     } catch (error: any) {
       console.error("Email verification error:", error);
       toast({
@@ -76,43 +78,32 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     }
   };
 
-  const handleSecurityQuestionsSubmit = async (e: React.FormEvent) => {
+  const handleSecurityQuestionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      console.log("Verifying security answers...");
-      console.log("User answers:", answers);
-      console.log("Stored answers:", securityQuestions);
-      
-      // Check if all 3 answers match exactly (case-insensitive)
-      const answer1Match = answers.answer1.toLowerCase().trim() === securityQuestions.answer1.toLowerCase().trim();
-      const answer2Match = answers.answer2.toLowerCase().trim() === securityQuestions.answer2.toLowerCase().trim();
-      const answer3Match = answers.answer3.toLowerCase().trim() === securityQuestions.answer3.toLowerCase().trim();
+      // Check if the answer matches (case-insensitive)
+      const answerMatch = userAnswer.toLowerCase().trim() === userDoc.securityAnswer.toLowerCase().trim();
 
-      console.log("Answer matches:", { answer1Match, answer2Match, answer3Match });
-
-      if (answer1Match && answer2Match && answer3Match) {
-        // Security questions verified, move to password reset step
-        console.log("Security questions verified, moving to password reset");
+      if (answerMatch) {
         setStep(3);
         toast({
-          title: "Security questions verified",
-          description: "Please set your new password.",
+          title: "Security question verified! 🔐",
+          description: "Great! Now set your new password.",
         });
       } else {
-        console.log("Security answers don't match");
         toast({
-          title: "Answers didn't match our records",
-          description: "Please try again with the correct answers.",
+          title: "Incorrect answer",
+          description: "The answer doesn't match our records. Please try again.",
           variant: "destructive",
         });
       }
     } catch (error: any) {
-      console.error("Security questions verification error:", error);
+      console.error("Security question verification error:", error);
       toast({
         title: "Error",
-        description: "Failed to verify security questions.",
+        description: "Failed to verify security question.",
         variant: "destructive",
       });
     } finally {
@@ -144,53 +135,32 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     setIsLoading(true);
 
     try {
-      console.log("Updating password for user:", userDoc.email);
-      console.log("User document ID:", userDoc.id);
+      // Send Firebase password reset email
+      await sendPasswordResetEmail(auth, email);
       
-      // Hash the new password for Firestore
+      // Hash the new password for Firestore backup
       const hashedPassword = await bcrypt.hash(newPassword, 12);
-      console.log("Password hashed successfully");
       
-      // Update password in Firestore first
+      // Update password in Firestore as backup
       const userRef = doc(db, "users", userDoc.id);
-      const updateData = {
+      await updateDoc(userRef, {
         password: hashedPassword,
         lastPasswordUpdate: new Date().toISOString(),
         passwordResetAt: new Date().toISOString()
-      };
-      
-      console.log("Attempting to update Firestore with data:", updateData);
-      await updateDoc(userRef, updateData);
-      console.log("Password updated successfully in Firestore");
-      
-      // Try to update Firebase Auth password if possible
-      // First, try to sign in with the old password to get auth context
-      try {
-        console.log("Attempting to sign in with old password to update Firebase Auth...");
-        // We can't do this without the old password, so we'll skip Firebase Auth update
-        // The login function will handle the hybrid authentication
-        console.log("Skipping Firebase Auth update - will be handled during login");
-      } catch (authError) {
-        console.log("Could not update Firebase Auth password:", authError);
-        // This is expected - we can't update Firebase Auth password without being signed in
-      }
-      
-      toast({
-        title: "Password updated successfully",
-        description: "You can now login with your new password.",
       });
       
-      // Reset form and go back to login
-      handleBackToLogin();
-      
-    } catch (error: any) {
-      console.error("Password update error:", error);
-      console.error("Error code:", error.code);
-      console.error("Error message:", error.message);
+      setStep(4);
       
       toast({
-        title: "Failed to update password",
-        description: `Error: ${error.message}. Please try again.`,
+        title: "Password reset email sent! 📝",
+        description: "Check your email and use the link to reset your password.",
+      });
+      
+    } catch (error: any) {
+      console.error("Password reset error:", error);
+      toast({
+        title: "Failed to send reset email",
+        description: "Please try again or contact support.",
         variant: "destructive",
       });
     } finally {
@@ -199,29 +169,44 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
   };
 
   const handleBackToLogin = () => {
-    // Reset form and go back to login
     setStep(1);
     setEmail("");
-    setAnswers({ answer1: "", answer2: "", answer3: "" });
+    setUserAnswer("");
     setNewPassword("");
     setConfirmPassword("");
-    setSecurityQuestions(null);
+    setSecurityQuestion("");
     setUserDoc(null);
     onBack();
+  };
+
+  const getStepTitle = () => {
+    switch (step) {
+      case 1: return "Step 1: Enter Your Registered Email";
+      case 2: return "Step 2: Answer Your Secret Question";
+      case 3: return "Step 3: Reset Your Password";
+      case 4: return "Step 4: Login With Your New Password";
+      default: return "Forgot Password";
+    }
+  };
+
+  const getStepDescription = () => {
+    switch (step) {
+      case 1: return "📩 Please enter the email linked to your account. (We'll check if you're in our cozy little database!)";
+      case 2: return "🔐 Let's make sure it's really you! Answer the security question you chose when signing up.";
+      case 3: return "📝 Yay! You've been verified. Now, go ahead and set a new password you'll remember (or at least love). 💡 Tip: Choose something strong, sweet, and secure!";
+      case 4: return "🎉 All done! Check your email for the password reset link, then return to login with your new password.";
+      default: return "";
+    }
   };
 
   return (
     <Card className="shadow-lg">
       <CardHeader className="space-y-1">
         <CardTitle className="text-2xl font-bold text-center">
-          {step === 1 && "Forgot Password"}
-          {step === 2 && "Security Questions"}
-          {step === 3 && "Set New Password"}
+          {getStepTitle()}
         </CardTitle>
         <CardDescription className="text-center">
-          {step === 1 && "Enter your registered email address"}
-          {step === 2 && "Answer your security questions to verify your identity"}
-          {step === 3 && "Enter your new password"}
+          {getStepDescription()}
         </CardDescription>
       </CardHeader>
       
@@ -250,35 +235,15 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
           </form>
         )}
 
-        {step === 2 && securityQuestions && (
-          <form onSubmit={handleSecurityQuestionsSubmit} className="space-y-4">
+        {step === 2 && (
+          <form onSubmit={handleSecurityQuestionSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label>{securityQuestions.question1}</Label>
+              <Label className="font-medium">{securityQuestion}</Label>
               <Input
                 type="text"
                 placeholder="Your answer"
-                value={answers.answer1}
-                onChange={(e) => setAnswers({ ...answers, answer1: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{securityQuestions.question2}</Label>
-              <Input
-                type="text"
-                placeholder="Your answer"
-                value={answers.answer2}
-                onChange={(e) => setAnswers({ ...answers, answer2: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{securityQuestions.question3}</Label>
-              <Input
-                type="text"
-                placeholder="Your answer"
-                value={answers.answer3}
-                onChange={(e) => setAnswers({ ...answers, answer3: e.target.value })}
+                value={userAnswer}
+                onChange={(e) => setUserAnswer(e.target.value)}
                 required
               />
             </div>
@@ -287,7 +252,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
                 Back
               </Button>
               <Button type="submit" disabled={isLoading} className="flex-1">
-                {isLoading ? "Verifying..." : "Reset Password"}
+                {isLoading ? "Verifying..." : "Continue"}
               </Button>
             </div>
           </form>
@@ -324,10 +289,24 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
                 Back
               </Button>
               <Button type="submit" disabled={isLoading} className="flex-1">
-                {isLoading ? "Updating..." : "Update Password"}
+                {isLoading ? "Sending Reset Email..." : "Reset Password"}
               </Button>
             </div>
           </form>
+        )}
+
+        {step === 4 && (
+          <div className="space-y-4 text-center">
+            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+              <p className="text-green-800 font-medium">Password reset email sent successfully!</p>
+              <p className="text-green-600 text-sm mt-2">
+                Check your inbox and click the reset link to complete the process.
+              </p>
+            </div>
+            <Button onClick={handleBackToLogin} className="w-full">
+              Back to Login
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>
