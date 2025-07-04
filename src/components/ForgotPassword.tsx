@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
@@ -145,17 +144,23 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
 
     try {
       console.log("Updating password for user:", userDoc.email);
+      console.log("User document ID:", userDoc.id);
       
       // Hash the new password for Firestore
       const hashedPassword = await bcrypt.hash(newPassword, 12);
+      console.log("Password hashed successfully");
       
       // Update password in Firestore only
       const userRef = doc(db, "users", userDoc.id);
-      await updateDoc(userRef, {
+      const updateData = {
         password: hashedPassword,
         lastPasswordUpdate: new Date().toISOString(),
         passwordResetAt: new Date().toISOString()
-      });
+      };
+      
+      console.log("Attempting to update with data:", updateData);
+      
+      await updateDoc(userRef, updateData);
       
       console.log("Password updated successfully in Firestore");
       
@@ -169,9 +174,12 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       
     } catch (error: any) {
       console.error("Password update error:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+      
       toast({
         title: "Failed to update password",
-        description: error.message || "Please try again.",
+        description: `Error: ${error.message}. Please try again.`,
         variant: "destructive",
       });
     } finally {
