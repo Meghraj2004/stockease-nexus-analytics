@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
@@ -31,6 +30,8 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     setIsLoading(true);
 
     try {
+      console.log("Checking email:", email);
+      
       // Check if email exists in users collection
       const usersQuery = query(collection(db, "users"), where("email", "==", email));
       const querySnapshot = await getDocs(usersQuery);
@@ -48,7 +49,10 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       const userDocument = querySnapshot.docs[0];
       const userData = userDocument.data();
       
-      if (!userData.securityQuestion || !userData.securityAnswer) {
+      console.log("User data:", userData);
+      
+      // Check if security questions exist (new structure)
+      if (!userData.securityQuestions || !userData.securityQuestions.question1 || !userData.securityQuestions.answer1) {
         toast({
           title: "Security question not set",
           description: "This account doesn't have a security question set up.",
@@ -58,7 +62,8 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         return;
       }
 
-      setSecurityQuestion(userData.securityQuestion);
+      // Use the first security question
+      setSecurityQuestion(userData.securityQuestions.question1);
       setUserDoc({ id: userDocument.id, ...userData });
       setStep(2);
       
@@ -83,8 +88,13 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     setIsLoading(true);
 
     try {
-      // Check if the answer matches (case-insensitive)
-      const answerMatch = userAnswer.toLowerCase().trim() === userDoc.securityAnswer.toLowerCase().trim();
+      // Check if the answer matches (case-insensitive) - using the first security question answer
+      const correctAnswer = userDoc.securityQuestions.answer1;
+      const answerMatch = userAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim();
+
+      console.log("User answer:", userAnswer.toLowerCase().trim());
+      console.log("Correct answer:", correctAnswer.toLowerCase().trim());
+      console.log("Match:", answerMatch);
 
       if (answerMatch) {
         setStep(3);
