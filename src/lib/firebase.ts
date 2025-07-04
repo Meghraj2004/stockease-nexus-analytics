@@ -3,7 +3,6 @@ import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, User } from "firebase/auth";
 import { getFirestore, serverTimestamp as firestoreTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-import bcrypt from "bcryptjs";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCm8oCRx8QqDZAu2Rwk-6bM3q4pEWtZbOc",

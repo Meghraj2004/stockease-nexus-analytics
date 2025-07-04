@@ -10,14 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Sparkles } from "lucide-react";
 import { doc, getDoc } from "firebase/firestore";
-import ForgotPassword from "@/components/ForgotPassword";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -66,18 +64,6 @@ const Login = () => {
       setIsLoading(false);
     }
   };
-
-  if (showForgotPassword) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-stockease-600/30 via-transparent to-purple-500/20 z-0" />
-        
-        <div className="w-full max-w-md p-4 z-10 relative">
-          <ForgotPassword onBack={() => setShowForgotPassword(false)} />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 relative overflow-hidden">
@@ -138,16 +124,7 @@ const Login = () => {
                 </div>
               </div>
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-stockease-700 font-medium">Password</Label>
-                  <button
-                    type="button"
-                    onClick={() => setShowForgotPassword(true)}
-                    className="text-sm text-stockease-600 hover:text-stockease-500 transition-colors"
-                  >
-                    Forgot password?
-                  </button>
-                </div>
+                <Label htmlFor="password" className="text-stockease-700 font-medium">Password</Label>
                 <div className="relative group">
                   <Input
                     id="password"
