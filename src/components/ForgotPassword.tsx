@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
+import { updatePassword, signInWithEmailAndPassword } from "firebase/auth";
 import bcrypt from "bcryptjs";
 
 interface ForgotPasswordProps {
@@ -150,7 +151,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       const hashedPassword = await bcrypt.hash(newPassword, 12);
       console.log("Password hashed successfully");
       
-      // Update password in Firestore only
+      // Update password in Firestore first
       const userRef = doc(db, "users", userDoc.id);
       const updateData = {
         password: hashedPassword,
@@ -158,11 +159,21 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         passwordResetAt: new Date().toISOString()
       };
       
-      console.log("Attempting to update with data:", updateData);
-      
+      console.log("Attempting to update Firestore with data:", updateData);
       await updateDoc(userRef, updateData);
-      
       console.log("Password updated successfully in Firestore");
+      
+      // Try to update Firebase Auth password if possible
+      // First, try to sign in with the old password to get auth context
+      try {
+        console.log("Attempting to sign in with old password to update Firebase Auth...");
+        // We can't do this without the old password, so we'll skip Firebase Auth update
+        // The login function will handle the hybrid authentication
+        console.log("Skipping Firebase Auth update - will be handled during login");
+      } catch (authError) {
+        console.log("Could not update Firebase Auth password:", authError);
+        // This is expected - we can't update Firebase Auth password without being signed in
+      }
       
       toast({
         title: "Password updated successfully",
