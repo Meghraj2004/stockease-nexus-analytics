@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -5,8 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Mail, Shield, Key, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
+import { db, sendPasswordResetEmailToUser } from "@/lib/firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import bcrypt from "bcryptjs";
 
 interface ForgotPasswordProps {
@@ -19,8 +20,6 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
   const [securityAnswer1, setSecurityAnswer1] = useState("");
   const [securityAnswer2, setSecurityAnswer2] = useState("");
   const [securityAnswer3, setSecurityAnswer3] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [userDoc, setUserDoc] = useState<any>(null);
   const { toast } = useToast();
@@ -112,9 +111,12 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         return;
       }
 
+      // Send Firebase password reset email
+      await sendPasswordResetEmailToUser(email);
+
       toast({
         title: "Security questions verified!",
-        description: "You can now set a new password.",
+        description: "A password reset email has been sent to your email address.",
       });
       
       setStep(3);
@@ -130,62 +132,11 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     setIsLoading(false);
   };
 
-  const handlePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (newPassword !== confirmPassword) {
-      toast({
-        title: "Passwords don't match",
-        description: "Please make sure both passwords are the same.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      toast({
-        title: "Password too short",
-        description: "Password must be at least 6 characters long.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-      
-      await updateDoc(doc(db, "users", userDoc.id), {
-        password: hashedPassword,
-        lastPasswordUpdate: new Date(),
-        passwordResetAt: new Date()
-      });
-
-      toast({
-        title: "Password updated successfully!",
-        description: "You can now login with your new password.",
-      });
-      
-      setStep(4);
-    } catch (error) {
-      console.error("Error updating password:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update password. Please try again.",
-        variant: "destructive",
-      });
-    }
-    
-    setIsLoading(false);
-  };
-
   const getStepIcon = () => {
     switch (step) {
       case 1: return <Mail className="h-6 w-6" />;
       case 2: return <Shield className="h-6 w-6" />;
-      case 3: return <Key className="h-6 w-6" />;
-      case 4: return <CheckCircle className="h-6 w-6" />;
+      case 3: return <CheckCircle className="h-6 w-6" />;
       default: return <Mail className="h-6 w-6" />;
     }
   };
@@ -194,8 +145,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     switch (step) {
       case 1: return "Enter Your Registered Email";
       case 2: return "Answer Your Security Questions";
-      case 3: return "Set a New Password";
-      case 4: return "Password Reset Complete";
+      case 3: return "Password Reset Email Sent";
       default: return "Reset Password";
     }
   };
@@ -204,8 +154,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     switch (step) {
       case 1: return "We'll check if your account exists in our database.";
       case 2: return "Please answer all three security questions to verify your identity.";
-      case 3: return "Create a new password for your account.";
-      case 4: return "Your new password is now your current password.";
+      case 3: return "Check your email for the password reset link.";
       default: return "";
     }
   };
@@ -225,7 +174,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         
         {/* Step indicator */}
         <div className="flex items-center space-x-2 mt-4">
-          {[1, 2, 3, 4].map((stepNum) => (
+          {[1, 2, 3].map((stepNum) => (
             <div
               key={stepNum}
               className={`w-2 h-2 rounded-full transition-colors ${
@@ -322,50 +271,12 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         )}
 
         {step === 3 && (
-          <form onSubmit={handlePasswordReset} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="newPassword" className="text-stockease-700 font-medium">New Password</Label>
-              <Input
-                id="newPassword"
-                type="password"
-                placeholder="Enter new password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="bg-stockease-50/50 border-stockease-200 focus:border-stockease-400"
-                required
-                minLength={6}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-stockease-700 font-medium">Confirm New Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="Confirm new password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="bg-stockease-50/50 border-stockease-200 focus:border-stockease-400"
-                required
-                minLength={6}
-              />
-            </div>
-            <Button 
-              type="submit" 
-              className="w-full bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600" 
-              disabled={isLoading}
-            >
-              {isLoading ? "Updating..." : "Update Password"}
-            </Button>
-          </form>
-        )}
-
-        {step === 4 && (
           <div className="text-center space-y-4">
             <div className="text-green-600 text-lg font-medium">
-              Password successfully updated!
+              Password reset email sent!
             </div>
             <p className="text-stockease-600">
-              You can now login with your new password.
+              Check your email for the password reset link. Click the link in the email to set your new password.
             </p>
             <Button 
               onClick={onBack}
@@ -376,7 +287,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
           </div>
         )}
 
-        {step < 4 && (
+        {step < 3 && (
           <Button
             variant="ghost"
             onClick={onBack}

@@ -1,6 +1,6 @@
 
 import { initializeApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, User } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, User, sendPasswordResetEmail, confirmPasswordReset } from "firebase/auth";
 import { getFirestore, serverTimestamp as firestoreTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -32,6 +32,15 @@ export const loginUser = async (email: string, password: string) => {
 
 export const logoutUser = async () => {
   return signOut(auth);
+};
+
+// Password reset functions
+export const sendPasswordResetEmailToUser = async (email: string) => {
+  return sendPasswordResetEmail(auth, email);
+};
+
+export const resetPassword = async (oobCode: string, newPassword: string) => {
+  return confirmPasswordReset(auth, oobCode, newPassword);
 };
 
 // Date formatting helper
