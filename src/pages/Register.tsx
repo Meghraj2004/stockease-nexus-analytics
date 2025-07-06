@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { registerUser } from "@/lib/firebase";
@@ -11,6 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { Package } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import bcrypt from "bcryptjs";
 
 const Register = () => {
   const [email, setEmail] = useState("");
@@ -91,6 +91,11 @@ const Register = () => {
       const userCredential = await registerUser(email, password);
       const user = userCredential.user;
       
+      // Hash the security answers
+      const hashedAnswer1 = await bcrypt.hash(securityAnswer1.toLowerCase().trim(), 10);
+      const hashedAnswer2 = await bcrypt.hash(securityAnswer2.toLowerCase().trim(), 10);
+      const hashedAnswer3 = await bcrypt.hash(securityAnswer3.toLowerCase().trim(), 10);
+      
       // Store user role and security questions in Firestore
       await setDoc(doc(db, "users", user.uid), {
         email: user.email,
@@ -98,11 +103,11 @@ const Register = () => {
         createdAt: new Date(),
         securityQuestions: {
           question1: securityQuestion1,
-          answer1: securityAnswer1.toLowerCase().trim(),
+          answer1: hashedAnswer1,
           question2: securityQuestion2,
-          answer2: securityAnswer2.toLowerCase().trim(),
+          answer2: hashedAnswer2,
           question3: securityQuestion3,
-          answer3: securityAnswer3.toLowerCase().trim(),
+          answer3: hashedAnswer3,
         }
       });
 

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +47,8 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       const userData = querySnapshot.docs[0];
       setUserDoc({ id: userData.id, ...userData.data() });
       
+      console.log("User data found:", { id: userData.id, ...userData.data() });
+      
       toast({
         title: "Email verified!",
         description: "Account found. Please answer your security questions.",
@@ -73,6 +74,13 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     try {
       const securityQuestions = userDoc.securityQuestions;
       
+      console.log("Security questions data:", securityQuestions);
+      console.log("User answers:", {
+        answer1: securityAnswer1.toLowerCase().trim(),
+        answer2: securityAnswer2.toLowerCase().trim(),
+        answer3: securityAnswer3.toLowerCase().trim()
+      });
+      
       if (!securityQuestions || !securityQuestions.answer1 || !securityQuestions.answer2 || !securityQuestions.answer3) {
         toast({
           title: "Security questions not found",
@@ -87,6 +95,12 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       const isAnswer1Correct = await bcrypt.compare(securityAnswer1.toLowerCase().trim(), securityQuestions.answer1);
       const isAnswer2Correct = await bcrypt.compare(securityAnswer2.toLowerCase().trim(), securityQuestions.answer2);
       const isAnswer3Correct = await bcrypt.compare(securityAnswer3.toLowerCase().trim(), securityQuestions.answer3);
+      
+      console.log("Answer comparison results:", {
+        answer1: isAnswer1Correct,
+        answer2: isAnswer2Correct,
+        answer3: isAnswer3Correct
+      });
       
       if (!isAnswer1Correct || !isAnswer2Correct || !isAnswer3Correct) {
         toast({
