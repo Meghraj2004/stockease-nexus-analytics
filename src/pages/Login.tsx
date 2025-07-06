@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { loginUser } from "@/lib/firebase";
@@ -10,12 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Sparkles } from "lucide-react";
 import { doc, getDoc } from "firebase/firestore";
+import ForgotPassword from "@/components/ForgotPassword";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -64,6 +65,38 @@ const Login = () => {
       setIsLoading(false);
     }
   };
+
+  if (showForgotPassword) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-stockease-600/30 via-transparent to-purple-500/20 z-0" />
+        
+        <div className="particles-container absolute inset-0 overflow-hidden">
+          {[...Array(25)].map((_, index) => (
+            <div 
+              key={index}
+              className="particle absolute rounded-full"
+              style={{
+                width: `${Math.random() * 8 + 3}px`,
+                height: `${Math.random() * 8 + 3}px`,
+                left: `${Math.random() * 100}%`,
+                backgroundColor: [
+                  "#FFA07A", "#FF7F50", "#FF6347", 
+                  "#87CEFA", "#B0E0E6", "#ADD8E6",
+                  "#FFD700", "#FFFFE0", "#FFFACD"
+                ][Math.floor(Math.random() * 9)],
+                animation: `fall ${Math.random() * 10 + 10}s linear ${Math.random() * 5}s infinite`
+              }}
+            />
+          ))}
+        </div>
+        
+        <div className="w-full max-w-md p-4 z-10 relative">
+          <ForgotPassword onBack={() => setShowForgotPassword(false)} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 relative overflow-hidden">
@@ -124,7 +157,16 @@ const Login = () => {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-stockease-700 font-medium">Password</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-stockease-700 font-medium">Password</Label>
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="text-sm text-stockease-600 hover:text-stockease-500 transition-colors"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
                 <div className="relative group">
                   <Input
                     id="password"
