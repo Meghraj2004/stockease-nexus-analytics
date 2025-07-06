@@ -17,7 +17,9 @@ interface ForgotPasswordProps {
 const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState("");
-  const [securityAnswer, setSecurityAnswer] = useState("");
+  const [securityAnswer1, setSecurityAnswer1] = useState("");
+  const [securityAnswer2, setSecurityAnswer2] = useState("");
+  const [securityAnswer3, setSecurityAnswer3] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -48,7 +50,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       
       toast({
         title: "Email verified!",
-        description: "Account found. Please answer your security question.",
+        description: "Account found. Please answer your security questions.",
       });
       
       setStep(2);
@@ -64,29 +66,32 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
     setIsLoading(false);
   };
 
-  const handleSecurityAnswer = async (e: React.FormEvent) => {
+  const handleSecurityAnswers = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      const storedAnswer = userDoc.securityQuestions?.answer1;
+      const securityQuestions = userDoc.securityQuestions;
       
-      if (!storedAnswer) {
+      if (!securityQuestions || !securityQuestions.answer1 || !securityQuestions.answer2 || !securityQuestions.answer3) {
         toast({
-          title: "Security question not found",
-          description: "No security question found for this account.",
+          title: "Security questions not found",
+          description: "No security questions found for this account.",
           variant: "destructive",
         });
         setIsLoading(false);
         return;
       }
 
-      const isAnswerCorrect = await bcrypt.compare(securityAnswer.toLowerCase().trim(), storedAnswer);
+      // Check all three security answers
+      const isAnswer1Correct = await bcrypt.compare(securityAnswer1.toLowerCase().trim(), securityQuestions.answer1);
+      const isAnswer2Correct = await bcrypt.compare(securityAnswer2.toLowerCase().trim(), securityQuestions.answer2);
+      const isAnswer3Correct = await bcrypt.compare(securityAnswer3.toLowerCase().trim(), securityQuestions.answer3);
       
-      if (!isAnswerCorrect) {
+      if (!isAnswer1Correct || !isAnswer2Correct || !isAnswer3Correct) {
         toast({
-          title: "Incorrect answer",
-          description: "The security answer is incorrect. Please try again.",
+          title: "Incorrect answers",
+          description: "One or more security answers are incorrect. Please try again.",
           variant: "destructive",
         });
         setIsLoading(false);
@@ -94,16 +99,16 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
       }
 
       toast({
-        title: "Security question verified!",
+        title: "Security questions verified!",
         description: "You can now set a new password.",
       });
       
       setStep(3);
     } catch (error) {
-      console.error("Error verifying security answer:", error);
+      console.error("Error verifying security answers:", error);
       toast({
         title: "Error",
-        description: "Failed to verify security answer. Please try again.",
+        description: "Failed to verify security answers. Please try again.",
         variant: "destructive",
       });
     }
@@ -174,7 +179,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
   const getStepTitle = () => {
     switch (step) {
       case 1: return "Enter Your Registered Email";
-      case 2: return "Answer Your Security Question";
+      case 2: return "Answer Your Security Questions";
       case 3: return "Set a New Password";
       case 4: return "Password Reset Complete";
       default: return "Reset Password";
@@ -184,8 +189,8 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
   const getStepDescription = () => {
     switch (step) {
       case 1: return "We'll check if your account exists in our database.";
-      case 2: return "Just to make sure it's really you!";
-      case 3: return "Once your answer is correct, you'll be able to create a new password.";
+      case 2: return "Please answer all three security questions to verify your identity.";
+      case 3: return "Create a new password for your account.";
       case 4: return "Your new password is now your current password.";
       default: return "";
     }
@@ -217,7 +222,7 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-6 pt-4">
+      <CardContent className="space-y-6 pt-4 max-h-96 overflow-y-auto">
         {step === 1 && (
           <form onSubmit={handleEmailSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -243,31 +248,61 @@ const ForgotPassword = ({ onBack }: ForgotPasswordProps) => {
         )}
 
         {step === 2 && userDoc && (
-          <form onSubmit={handleSecurityAnswer} className="space-y-4">
+          <form onSubmit={handleSecurityAnswers} className="space-y-4">
+            {/* Security Question 1 */}
             <div className="space-y-2">
-              <Label className="text-stockease-700 font-medium">Security Question</Label>
+              <Label className="text-stockease-700 font-medium">Security Question 1</Label>
               <p className="text-sm text-stockease-600 bg-stockease-50 p-3 rounded-md border border-stockease-200">
                 {userDoc.securityQuestions?.question1}
               </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="answer" className="text-stockease-700 font-medium">Your Answer</Label>
               <Input
-                id="answer"
                 type="text"
-                placeholder="Enter your answer"
-                value={securityAnswer}
-                onChange={(e) => setSecurityAnswer(e.target.value)}
+                placeholder="Your answer"
+                value={securityAnswer1}
+                onChange={(e) => setSecurityAnswer1(e.target.value)}
                 className="bg-stockease-50/50 border-stockease-200 focus:border-stockease-400"
                 required
               />
             </div>
+
+            {/* Security Question 2 */}
+            <div className="space-y-2">
+              <Label className="text-stockease-700 font-medium">Security Question 2</Label>
+              <p className="text-sm text-stockease-600 bg-stockease-50 p-3 rounded-md border border-stockease-200">
+                {userDoc.securityQuestions?.question2}
+              </p>
+              <Input
+                type="text"
+                placeholder="Your answer"
+                value={securityAnswer2}
+                onChange={(e) => setSecurityAnswer2(e.target.value)}
+                className="bg-stockease-50/50 border-stockease-200 focus:border-stockease-400"
+                required
+              />
+            </div>
+
+            {/* Security Question 3 */}
+            <div className="space-y-2">
+              <Label className="text-stockease-700 font-medium">Security Question 3</Label>
+              <p className="text-sm text-stockease-600 bg-stockease-50 p-3 rounded-md border border-stockease-200">
+                {userDoc.securityQuestions?.question3}
+              </p>
+              <Input
+                type="text"
+                placeholder="Your answer"
+                value={securityAnswer3}
+                onChange={(e) => setSecurityAnswer3(e.target.value)}
+                className="bg-stockease-50/50 border-stockease-200 focus:border-stockease-400"
+                required
+              />
+            </div>
+
             <Button 
               type="submit" 
               className="w-full bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600" 
               disabled={isLoading}
             >
-              {isLoading ? "Verifying..." : "Verify Answer"}
+              {isLoading ? "Verifying..." : "Verify Answers"}
             </Button>
           </form>
         )}
