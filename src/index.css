@@ -104,6 +104,18 @@
   filter: blur(2px);
 }
 
+/* Falling animation for particles */
+@keyframes fall {
+  0% {
+    transform: translateY(-100vh) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
 /* Glassmorphism effect */
 .glass {
   @apply backdrop-blur-lg bg-white/70 border border-white/30 shadow-lg;
@@ -164,6 +176,48 @@
 
 .dashboard-card:hover {
   @apply shadow-lg transform -translate-y-1;
+}
+
+/* Hover scale animation */
+.hover-scale {
+  @apply transition-transform duration-200 hover:scale-105;
+}
+
+/* Scale in animation */
+@keyframes scale-in {
+  0% {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out;
+}
+
+/* Shake animation for errors */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Spin slow animation */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
 }
 
 /* Improved form styling */
