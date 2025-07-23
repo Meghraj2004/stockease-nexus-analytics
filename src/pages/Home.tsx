@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,9 +25,16 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { useState } from "react";
+import DeveloperContactForm from "@/components/DeveloperContactForm";
 
 const Home = () => {
   const { currentUser } = useAuth();
+  const [contactFormOpen, setContactFormOpen] = useState(false);
+  const [selectedDeveloper, setSelectedDeveloper] = useState<{
+    name: string;
+    email: string;
+  } | null>(null);
 
   const features = [
     {
@@ -107,6 +113,16 @@ const Home = () => {
       bio: "Database and API expert with focus on scalable solutions"
     }
   ];
+
+  const handleContactDeveloper = (developer: { name: string; email: string }) => {
+    setSelectedDeveloper(developer);
+    setContactFormOpen(true);
+  };
+
+  const handleContactTeam = () => {
+    setSelectedDeveloper({ name: "Developer Team", email: "team@stockease.com" });
+    setContactFormOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-stockease-50 via-white to-indigo-50">
@@ -290,7 +306,7 @@ const Home = () => {
                     <span className="text-sm text-gray-600">{developer.email}</span>
                   </div>
                   
-                  <div className="flex justify-center space-x-4">
+                  <div className="flex justify-center space-x-4 mb-4">
                     <div className="flex items-center space-x-1 cursor-pointer hover:text-stockease-600 transition-colors">
                       <Github className="h-4 w-4" />
                       <span className="text-sm">GitHub</span>
@@ -304,6 +320,14 @@ const Home = () => {
                       <span className="text-sm">Twitter</span>
                     </div>
                   </div>
+                  
+                  <Button 
+                    onClick={() => handleContactDeveloper({ name: developer.name, email: developer.email })}
+                    className="w-full bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600"
+                  >
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Contact {developer.name.split(' ')[0]}
+                  </Button>
                 </CardContent>
               </Card>
             ))}
@@ -318,7 +342,10 @@ const Home = () => {
               Our development team is always ready to help and loves hearing from users
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button className="bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600">
+              <Button 
+                onClick={handleContactTeam}
+                className="bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600"
+              >
                 <MessageSquare className="h-4 w-4 mr-2" />
                 Contact Developers
               </Button>
@@ -449,6 +476,14 @@ const Home = () => {
           </div>
         </div>
       </footer>
+
+      {/* Contact Form Modal */}
+      <DeveloperContactForm
+        isOpen={contactFormOpen}
+        onClose={() => setContactFormOpen(false)}
+        developerName={selectedDeveloper?.name || "Developer Team"}
+        developerEmail={selectedDeveloper?.email || "team@stockease.com"}
+      />
     </div>
   );
 };
