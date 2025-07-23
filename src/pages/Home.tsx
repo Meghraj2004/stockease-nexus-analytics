@@ -16,7 +16,13 @@ import {
   Smartphone,
   Mail,
   Phone,
-  MapPin
+  MapPin,
+  Github,
+  Linkedin,
+  Twitter,
+  Code,
+  Heart,
+  MessageSquare
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -70,6 +76,36 @@ const Home = () => {
     "Comprehensive analytics dashboard",
     "Multi-location support",
     "Export reports in multiple formats"
+  ];
+
+  const developers = [
+    {
+      name: "Alex Johnson",
+      role: "Full Stack Developer",
+      email: "alex@stockease.com",
+      github: "alexjohnson",
+      linkedin: "alex-johnson-dev",
+      twitter: "alexjohnsondev",
+      bio: "Lead developer with 5+ years in React and Node.js"
+    },
+    {
+      name: "Sarah Chen",
+      role: "Frontend Developer",
+      email: "sarah@stockease.com",
+      github: "sarahchen",
+      linkedin: "sarah-chen-frontend",
+      twitter: "sarahchendev",
+      bio: "UI/UX specialist passionate about creating intuitive interfaces"
+    },
+    {
+      name: "Mike Rodriguez",
+      role: "Backend Developer",
+      email: "mike@stockease.com",
+      github: "mikerodriguez",
+      linkedin: "mike-rodriguez-backend",
+      twitter: "mikeroddev",
+      bio: "Database and API expert with focus on scalable solutions"
+    }
   ];
 
   return (
@@ -220,6 +256,81 @@ const Home = () => {
         </div>
       </section>
 
+      {/* Developers Contact Section */}
+      <section className="py-20 px-4 bg-white">
+        <div className="container mx-auto max-w-6xl">
+          <div className="text-center mb-16">
+            <Badge className="mb-6 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700">
+              <Code className="h-3 w-3 mr-1" />
+              Meet the Team
+            </Badge>
+            <h2 className="text-4xl font-bold mb-4 text-gray-800">
+              Our Development Team
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Passionate developers dedicated to building the best inventory management solution for your business
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+            {developers.map((developer, index) => (
+              <Card key={index} className="hover:shadow-lg transition-all duration-300 border-stockease-100 group">
+                <CardHeader className="text-center pb-4">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-stockease-600 to-stockease-400 flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform duration-300">
+                    <Code className="h-8 w-8 text-white" />
+                  </div>
+                  <CardTitle className="text-xl text-gray-800">{developer.name}</CardTitle>
+                  <CardDescription className="text-stockease-600 font-medium">{developer.role}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600 mb-4 text-center">{developer.bio}</p>
+                  
+                  <div className="flex items-center justify-center space-x-2 mb-4">
+                    <Mail className="h-4 w-4 text-gray-400" />
+                    <span className="text-sm text-gray-600">{developer.email}</span>
+                  </div>
+                  
+                  <div className="flex justify-center space-x-4">
+                    <div className="flex items-center space-x-1 cursor-pointer hover:text-stockease-600 transition-colors">
+                      <Github className="h-4 w-4" />
+                      <span className="text-sm">GitHub</span>
+                    </div>
+                    <div className="flex items-center space-x-1 cursor-pointer hover:text-stockease-600 transition-colors">
+                      <Linkedin className="h-4 w-4" />
+                      <span className="text-sm">LinkedIn</span>
+                    </div>
+                    <div className="flex items-center space-x-1 cursor-pointer hover:text-stockease-600 transition-colors">
+                      <Twitter className="h-4 w-4" />
+                      <span className="text-sm">Twitter</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          
+          {/* Contact CTA */}
+          <div className="bg-gradient-to-r from-stockease-50 to-indigo-50 rounded-2xl p-8 text-center">
+            <h3 className="text-2xl font-bold mb-4 text-gray-800">
+              Have Questions or Feedback?
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Our development team is always ready to help and loves hearing from users
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button className="bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600">
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Contact Developers
+              </Button>
+              <Button variant="outline" className="border-stockease-200 hover:bg-stockease-50">
+                <Github className="h-4 w-4 mr-2" />
+                View Source Code
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-20 px-4 bg-gradient-to-r from-stockease-600 to-stockease-500">
         <div className="container mx-auto text-center max-w-4xl">
@@ -333,7 +444,7 @@ const Home = () => {
               </div>
             </div>
             <div className="text-center text-gray-400 mt-8 pt-8 border-t border-gray-800">
-              <p>&copy; 2024 StockEase. All rights reserved. Made with ❤️ for modern businesses.</p>
+              <p>&copy; 2024 StockEase. All rights reserved. Made with <Heart className="h-4 w-4 inline text-red-500" /> for modern businesses.</p>
             </div>
           </div>
         </div>
