@@ -17,18 +17,9 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 
 const Home = () => {
   const { currentUser } = useAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (currentUser) {
-      navigate("/dashboard");
-    }
-  }, [currentUser, navigate]);
 
   const features = [
     {
@@ -94,12 +85,20 @@ const Home = () => {
             </div>
             
             <div className="flex items-center space-x-4">
-              <Button variant="outline" asChild className="border-stockease-200 hover:bg-stockease-50">
-                <Link to="/login">Login</Link>
-              </Button>
-              <Button asChild className="bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600">
-                <Link to="/register">Sign Up</Link>
-              </Button>
+              {currentUser ? (
+                <Button asChild className="bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600">
+                  <Link to="/dashboard">Dashboard</Link>
+                </Button>
+              ) : (
+                <>
+                  <Button variant="outline" asChild className="border-stockease-200 hover:bg-stockease-50">
+                    <Link to="/login">Login</Link>
+                  </Button>
+                  <Button asChild className="bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600">
+                    <Link to="/register">Sign Up</Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -123,27 +122,42 @@ const Home = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            <Button 
-              size="lg" 
-              className="bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600 text-lg px-8 py-6"
-              asChild
-            >
-              <Link to="/register">
-                Get Started Free
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Link>
-            </Button>
-            
-            <Button 
-              size="lg" 
-              variant="outline" 
-              className="border-stockease-200 hover:bg-stockease-50 text-lg px-8 py-6"
-              asChild
-            >
-              <Link to="/login">
-                Sign In
-              </Link>
-            </Button>
+            {currentUser ? (
+              <Button 
+                size="lg" 
+                className="bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600 text-lg px-8 py-6"
+                asChild
+              >
+                <Link to="/dashboard">
+                  Go to Dashboard
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
+              </Button>
+            ) : (
+              <>
+                <Button 
+                  size="lg" 
+                  className="bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600 text-lg px-8 py-6"
+                  asChild
+                >
+                  <Link to="/register">
+                    Get Started Free
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Link>
+                </Button>
+                
+                <Button 
+                  size="lg" 
+                  variant="outline" 
+                  className="border-stockease-200 hover:bg-stockease-50 text-lg px-8 py-6"
+                  asChild
+                >
+                  <Link to="/login">
+                    Sign In
+                  </Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -214,16 +228,29 @@ const Home = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button 
-              size="lg" 
-              className="bg-white text-stockease-600 hover:bg-stockease-50 text-lg px-8 py-6"
-              asChild
-            >
-              <Link to="/register">
-                Start Free Trial
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Link>
-            </Button>
+            {currentUser ? (
+              <Button 
+                size="lg" 
+                className="bg-white text-stockease-600 hover:bg-stockease-50 text-lg px-8 py-6"
+                asChild
+              >
+                <Link to="/dashboard">
+                  Go to Dashboard
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
+              </Button>
+            ) : (
+              <Button 
+                size="lg" 
+                className="bg-white text-stockease-600 hover:bg-stockease-50 text-lg px-8 py-6"
+                asChild
+              >
+                <Link to="/register">
+                  Start Free Trial
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
       </section>

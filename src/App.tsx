@@ -40,7 +40,7 @@ function App() {
           <AuthProvider>
             <BrowserRouter>
               <Routes>
-                {/* Public Routes */}
+                {/* Public Routes - Home page is now the default */}
                 <Route path="/" element={<Home />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
