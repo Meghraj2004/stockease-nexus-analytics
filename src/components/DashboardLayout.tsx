@@ -14,12 +14,12 @@ const DashboardContent = ({ children }: { children: React.ReactNode }) => {
   const isMobile = useIsMobile();
   
   return (
-    <div className="min-h-screen flex w-full relative overflow-hidden">
+    <div className="min-h-screen flex w-full bg-gradient-to-br from-stockease-50/30 via-white to-indigo-50/30">
       <AppSidebar />
       <SidebarToggle />
       <SwipeHandle />
-      <main className="flex-1 overflow-auto relative z-10">
-        <div className="container py-6 px-4 md:px-6 dashboard-content animate-fade-in relative z-10">
+      <main className="flex-1 overflow-auto">
+        <div className="container py-6 px-4 md:px-6 dashboard-content animate-fade-in">
           {children}
         </div>
       </main>
@@ -37,10 +37,10 @@ const SidebarToggle = () => {
       <Button 
         variant="outline" 
         size="icon" 
-        className="fixed left-4 top-4 z-50 glass bg-white/10 backdrop-blur-lg border-white/20 text-white hover:bg-white/20"
+        className="fixed left-4 top-4 z-50 bg-white shadow-md border-stockease-100"
         onClick={() => setOpenMobile(true)}
       >
-        <PanelLeft className="h-5 w-5" />
+        <PanelLeft className="h-5 w-5 text-stockease-600" />
         <span className="sr-only">Open Sidebar</span>
       </Button>
     );
@@ -53,10 +53,10 @@ const SidebarToggle = () => {
     <Button 
       variant="outline" 
       size="icon" 
-      className="fixed left-4 top-4 z-50 glass bg-white/10 backdrop-blur-lg border-white/20 text-white hover:bg-white/20"
+      className="fixed left-4 top-4 z-50 bg-white shadow-md border-stockease-100"
       onClick={toggleSidebar}
     >
-      <PanelLeft className="h-5 w-5" />
+      <PanelLeft className="h-5 w-5 text-stockease-600" />
       <span className="sr-only">Open Sidebar</span>
     </Button>
   );
@@ -71,7 +71,7 @@ const SwipeHandle = () => {
   
   return (
     <div 
-      className="fixed left-0 top-0 w-2 h-full bg-white/20 opacity-50 z-40"
+      className="fixed left-0 top-0 w-2 h-full bg-stockease-100 opacity-50 z-40"
       aria-hidden="true"
     />
   );
