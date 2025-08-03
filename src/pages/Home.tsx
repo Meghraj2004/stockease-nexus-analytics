@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -86,30 +87,43 @@ const Home = () => {
 
   const developers = [
     {
-      name: "Alex Johnson",
+      name: "Megharaj Dandgavhal",
       role: "Full Stack Developer",
-      email: "alex@stockease.com",
-      github: "alexjohnson",
-      linkedin: "alex-johnson-dev",
-      twitter: "alexjohnsondev",
+      email: "megharajdandgavhal2004@gmail.com",
+      image: "https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      github: "megharaj-dandgavhal",
+      linkedin: "megharaj-dandgavhal",
+      twitter: "megharaj_dev",
       bio: "Lead developer with 5+ years in React and Node.js"
     },
     {
-      name: "Sarah Chen",
+      name: "Samruddhi Gore",
       role: "Frontend Developer",
-      email: "sarah@stockease.com",
-      github: "sarahchen",
-      linkedin: "sarah-chen-frontend",
-      twitter: "sarahchendev",
+      email: "samruddhigore@stockease.com",
+      image: "https://images.unsplash.com/photo-1487058792275-0ad4aaf24ca7?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      github: "samruddhi-gore",
+      linkedin: "samruddhi-gore",
+      twitter: "samruddhi_dev",
       bio: "UI/UX specialist passionate about creating intuitive interfaces"
     },
     {
-      name: "Mike Rodriguez",
+      name: "Samyak Hirap",
       role: "Backend Developer",
-      email: "mike@stockease.com",
-      github: "mikerodriguez",
-      linkedin: "mike-rodriguez-backend",
-      twitter: "mikeroddev",
+      email: "samyak@stockease.com",
+      image: "https://images.unsplash.com/photo-1498050108023-4542c06a5843?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      github: "samyak-hirap",
+      linkedin: "samyak-hirap",
+      twitter: "samyak_dev",
+      bio: "Database and API expert with focus on scalable solutions"
+    },
+    {
+      name: "Tanisha Godha",
+      role: "Backend Developer",
+      email: "tanisha@stockease.com",
+      image: "https://images.unsplash.com/photo-1483058712412-4245e9b90334?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      github: "tanisha-godha",
+      linkedin: "tanisha-godha",
+      twitter: "tanisha_dev",
       bio: "Database and API expert with focus on scalable solutions"
     }
   ];
@@ -122,6 +136,24 @@ const Home = () => {
   const handleContactTeam = () => {
     setSelectedDeveloper({ name: "Developer Team", email: "team@stockease.com" });
     setContactFormOpen(true);
+  };
+
+  const handleSocialClick = (platform: string, username: string) => {
+    let url = '';
+    switch (platform) {
+      case 'github':
+        url = `https://github.com/${username}`;
+        break;
+      case 'linkedin':
+        url = `https://linkedin.com/in/${username}`;
+        break;
+      case 'twitter':
+        url = `https://twitter.com/${username}`;
+        break;
+    }
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
   };
 
   return (
@@ -288,12 +320,16 @@ const Home = () => {
             </p>
           </div>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+          <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-8 mb-16">
             {developers.map((developer, index) => (
               <Card key={index} className="hover:shadow-lg transition-all duration-300 border-stockease-100 group">
                 <CardHeader className="text-center pb-4">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-stockease-600 to-stockease-400 flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform duration-300">
-                    <Code className="h-8 w-8 text-white" />
+                  <div className="w-20 h-20 rounded-full overflow-hidden mb-4 mx-auto group-hover:scale-110 transition-transform duration-300 border-4 border-stockease-200">
+                    <img 
+                      src={developer.image} 
+                      alt={developer.name}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <CardTitle className="text-xl text-gray-800">{developer.name}</CardTitle>
                   <CardDescription className="text-stockease-600 font-medium">{developer.role}</CardDescription>
@@ -307,15 +343,24 @@ const Home = () => {
                   </div>
                   
                   <div className="flex justify-center space-x-4 mb-4">
-                    <div className="flex items-center space-x-1 cursor-pointer hover:text-stockease-600 transition-colors">
+                    <div 
+                      className="flex items-center space-x-1 cursor-pointer hover:text-stockease-600 transition-colors"
+                      onClick={() => handleSocialClick('github', developer.github)}
+                    >
                       <Github className="h-4 w-4" />
                       <span className="text-sm">GitHub</span>
                     </div>
-                    <div className="flex items-center space-x-1 cursor-pointer hover:text-stockease-600 transition-colors">
+                    <div 
+                      className="flex items-center space-x-1 cursor-pointer hover:text-stockease-600 transition-colors"
+                      onClick={() => handleSocialClick('linkedin', developer.linkedin)}
+                    >
                       <Linkedin className="h-4 w-4" />
                       <span className="text-sm">LinkedIn</span>
                     </div>
-                    <div className="flex items-center space-x-1 cursor-pointer hover:text-stockease-600 transition-colors">
+                    <div 
+                      className="flex items-center space-x-1 cursor-pointer hover:text-stockease-600 transition-colors"
+                      onClick={() => handleSocialClick('twitter', developer.twitter)}
+                    >
                       <Twitter className="h-4 w-4" />
                       <span className="text-sm">Twitter</span>
                     </div>
