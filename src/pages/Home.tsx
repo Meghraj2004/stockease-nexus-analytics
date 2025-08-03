@@ -1,160 +1,125 @@
 
+import { Suspense } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Text, Box, Sphere, Environment, Float, PerspectiveCamera } from '@react-three/drei';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import { 
   Package, 
+  ArrowRight,
+  Star,
   BarChart3, 
   Users, 
   TrendingUp, 
   Shield, 
-  Zap,
-  CheckCircle,
-  ArrowRight,
-  Star,
-  Globe,
-  Smartphone,
-  Mail,
-  Phone,
-  MapPin,
-  Github,
-  Linkedin,
-  Twitter,
-  Code,
-  Heart,
-  MessageSquare
+  Zap
 } from "lucide-react";
-import { Link } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
-import { useState } from "react";
-import DeveloperContactForm from "@/components/DeveloperContactForm";
+
+// 3D Components
+function FloatingBox({ position, color, ...props }: any) {
+  return (
+    <Float speed={1.4} rotationIntensity={1} floatIntensity={2}>
+      <Box position={position} {...props}>
+        <meshStandardMaterial color={color} />
+      </Box>
+    </Float>
+  );
+}
+
+function FloatingSphere({ position, color, ...props }: any) {
+  return (
+    <Float speed={2} rotationIntensity={0.5} floatIntensity={1.5}>
+      <Sphere position={position} {...props}>
+        <meshStandardMaterial color={color} />
+      </Sphere>
+    </Float>
+  );
+}
+
+function Scene() {
+  return (
+    <>
+      <PerspectiveCamera makeDefault position={[0, 0, 8]} />
+      <OrbitControls enablePan={false} enableZoom={false} maxPolarAngle={Math.PI / 2} />
+      
+      <Environment preset="city" />
+      
+      <ambientLight intensity={0.5} />
+      <pointLight position={[10, 10, 10]} />
+      
+      {/* Main central logo/text */}
+      <Text
+        position={[0, 1, 0]}
+        fontSize={1.2}
+        color="#0284c7"
+        anchorX="center"
+        anchorY="middle"
+        font="/fonts/Inter-Bold.woff"
+      >
+        StockEase
+      </Text>
+      
+      <Text
+        position={[0, 0.2, 0]}
+        fontSize={0.3}
+        color="#64748b"
+        anchorX="center"
+        anchorY="middle"
+      >
+        Inventory Management System
+      </Text>
+      
+      {/* Floating 3D elements */}
+      <FloatingBox position={[-3, 2, -1]} color="#0ea5e9" args={[0.8, 0.8, 0.8]} />
+      <FloatingSphere position={[3, 2, -1]} color="#8b5cf6" args={[0.5]} />
+      <FloatingBox position={[-2, -1.5, -2]} color="#10b981" args={[0.6, 1.2, 0.6]} />
+      <FloatingSphere position={[2.5, -1, -1]} color="#f59e0b" args={[0.4]} />
+      <FloatingBox position={[0, -2.5, -3]} color="#ef4444" args={[1, 0.4, 1]} />
+      <FloatingSphere position={[-3.5, 0, -2]} color="#06b6d4" args={[0.3]} />
+      
+      {/* Background elements */}
+      <FloatingBox position={[4, 3, -4]} color="#0284c7" args={[0.4, 0.4, 0.4]} />
+      <FloatingSphere position={[-4, -2, -4]} color="#7c3aed" args={[0.3]} />
+    </>
+  );
+}
 
 const Home = () => {
   const { currentUser } = useAuth();
-  const [contactFormOpen, setContactFormOpen] = useState(false);
-  const [selectedDeveloper, setSelectedDeveloper] = useState<{
-    name: string;
-    email: string;
-  } | null>(null);
 
   const features = [
     {
       icon: Package,
       title: "Inventory Management",
-      description: "Track stock levels, manage products, and get real-time alerts for low inventory.",
-      color: "from-blue-500 to-cyan-500"
+      description: "Track stock levels and manage products efficiently"
     },
     {
       icon: BarChart3,
       title: "Sales Analytics",
-      description: "Comprehensive sales reports with insights and performance metrics.",
-      color: "from-purple-500 to-pink-500"
+      description: "Comprehensive sales reports and insights"
     },
     {
       icon: Users,
       title: "Multi-User Support",
-      description: "Admin and employee roles with granular permissions and access control.",
-      color: "from-green-500 to-emerald-500"
+      description: "Admin and employee roles with permissions"
     },
     {
       icon: TrendingUp,
       title: "Advanced Reports",
-      description: "Generate detailed reports for inventory, sales, and business insights.",
-      color: "from-orange-500 to-red-500"
+      description: "Detailed business insights and analytics"
     },
     {
       icon: Shield,
       title: "Secure & Reliable",
-      description: "Enterprise-grade security with data backup and recovery options.",
-      color: "from-indigo-500 to-purple-500"
+      description: "Enterprise-grade security and data protection"
     },
     {
       icon: Zap,
       title: "Real-time Updates",
-      description: "Live synchronization across all devices and instant notifications.",
-      color: "from-yellow-500 to-orange-500"
+      description: "Live synchronization across all devices"
     }
   ];
-
-  const benefits = [
-    "Reduce inventory costs by up to 30%",
-    "Automate manual processes",
-    "Real-time stock alerts",
-    "Comprehensive analytics dashboard",
-    "Multi-location support",
-    "Export reports in multiple formats"
-  ];
-
-  const developers = [
-    {
-      name: "Megharaj Dandgavhal",
-      role: "Full Stack Developer",
-      email: "megharajdandgavhal2004@gmail.com",
-      image: "https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
-      github: "megharaj-dandgavhal",
-      linkedin: "megharaj-dandgavhal",
-      twitter: "megharaj_dev",
-      bio: "Lead developer with 5+ years in React and Node.js"
-    },
-    {
-      name: "Samruddhi Gore",
-      role: "Frontend Developer",
-      email: "samruddhigore@stockease.com",
-      image: "https://images.unsplash.com/photo-1487058792275-0ad4aaf24ca7?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
-      github: "samruddhi-gore",
-      linkedin: "samruddhi-gore",
-      twitter: "samruddhi_dev",
-      bio: "UI/UX specialist passionate about creating intuitive interfaces"
-    },
-    {
-      name: "Samyak Hirap",
-      role: "Backend Developer",
-      email: "samyak@stockease.com",
-      image: "https://images.unsplash.com/photo-1498050108023-4542c06a5843?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
-      github: "samyak-hirap",
-      linkedin: "samyak-hirap",
-      twitter: "samyak_dev",
-      bio: "Database and API expert with focus on scalable solutions"
-    },
-    {
-      name: "Tanisha Godha",
-      role: "Backend Developer",
-      email: "tanisha@stockease.com",
-      image: "https://images.unsplash.com/photo-1483058712412-4245e9b90334?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
-      github: "tanisha-godha",
-      linkedin: "tanisha-godha",
-      twitter: "tanisha_dev",
-      bio: "Database and API expert with focus on scalable solutions"
-    }
-  ];
-
-  const handleContactDeveloper = (developer: { name: string; email: string }) => {
-    setSelectedDeveloper(developer);
-    setContactFormOpen(true);
-  };
-
-  const handleContactTeam = () => {
-    setSelectedDeveloper({ name: "Developer Team", email: "team@stockease.com" });
-    setContactFormOpen(true);
-  };
-
-  const handleSocialClick = (platform: string, username: string) => {
-    let url = '';
-    switch (platform) {
-      case 'github':
-        url = `https://github.com/${username}`;
-        break;
-      case 'linkedin':
-        url = `https://linkedin.com/in/${username}`;
-        break;
-      case 'twitter':
-        url = `https://twitter.com/${username}`;
-        break;
-    }
-    if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-stockease-50 via-white to-indigo-50">
@@ -191,60 +156,74 @@ const Home = () => {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative py-20 px-4">
-        <div className="container mx-auto text-center max-w-4xl">
-          <Badge className="mb-6 bg-stockease-100 text-stockease-700 hover:bg-stockease-200">
-            <Star className="h-3 w-3 mr-1" />
-            Trusted by 10,000+ businesses
-          </Badge>
-          
-          <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-stockease-800 via-stockease-600 to-stockease-500 bg-clip-text text-transparent leading-tight">
-            Smart Inventory & Sales Management
-          </h1>
-          
-          <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-            Transform your business with our comprehensive inventory and sales management system. 
-            Track stock, manage sales, and analyze performance all in one powerful platform.
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            {currentUser ? (
-              <Button 
-                size="lg" 
-                className="bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600 text-lg px-8 py-6"
-                asChild
-              >
-                <Link to="/dashboard">
-                  Go to Dashboard
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Link>
-              </Button>
-            ) : (
-              <>
+      {/* 3D Hero Section */}
+      <section className="relative h-screen flex items-center">
+        {/* 3D Canvas Background */}
+        <div className="absolute inset-0 z-0">
+          <Canvas>
+            <Suspense fallback={null}>
+              <Scene />
+            </Suspense>
+          </Canvas>
+        </div>
+        
+        {/* Hero Content Overlay */}
+        <div className="relative z-10 container mx-auto px-4 text-center">
+          <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 max-w-4xl mx-auto border border-white/20">
+            <div className="flex items-center justify-center mb-6">
+              <Star className="h-4 w-4 mr-2 text-stockease-600" />
+              <span className="text-stockease-700 font-medium">Trusted by 10,000+ businesses</span>
+            </div>
+            
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-stockease-800 via-stockease-600 to-stockease-500 bg-clip-text text-transparent leading-tight">
+              Smart Inventory
+              <br />
+              Management
+            </h1>
+            
+            <p className="text-xl text-gray-700 mb-8 leading-relaxed max-w-2xl mx-auto">
+              Transform your business with our comprehensive 3D-powered inventory and sales management system. 
+              Experience the future of business management.
+            </p>
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              {currentUser ? (
                 <Button 
                   size="lg" 
                   className="bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600 text-lg px-8 py-6"
                   asChild
                 >
-                  <Link to="/register">
-                    Get Started Free
+                  <Link to="/dashboard">
+                    Go to Dashboard
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Link>
                 </Button>
-                
-                <Button 
-                  size="lg" 
-                  variant="outline" 
-                  className="border-stockease-200 hover:bg-stockease-50 text-lg px-8 py-6"
-                  asChild
-                >
-                  <Link to="/login">
-                    Sign In
-                  </Link>
-                </Button>
-              </>
-            )}
+              ) : (
+                <>
+                  <Button 
+                    size="lg" 
+                    className="bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600 text-lg px-8 py-6"
+                    asChild
+                  >
+                    <Link to="/register">
+                      Get Started Free
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </Link>
+                  </Button>
+                  
+                  <Button 
+                    size="lg" 
+                    variant="outline" 
+                    className="border-white/30 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-lg px-8 py-6"
+                    asChild
+                  >
+                    <Link to="/login">
+                      Sign In
+                    </Link>
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -254,163 +233,44 @@ const Home = () => {
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold mb-4 text-gray-800">
-              Everything You Need to Manage Your Business
+              Everything You Need in 3D
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Powerful features designed to streamline your operations and boost productivity
+              Experience inventory management like never before with our interactive 3D interface
             </p>
           </div>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {features.map((feature, index) => (
-              <Card key={index} className="relative overflow-hidden hover:shadow-lg transition-all duration-300 border-stockease-100 group">
-                <CardHeader className="pb-4">
-                  <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${feature.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
-                    <feature.icon className="h-6 w-6 text-white" />
-                  </div>
-                  <CardTitle className="text-xl text-gray-800">{feature.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription className="text-gray-600 leading-relaxed">
-                    {feature.description}
-                  </CardDescription>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Benefits Section */}
-      <section className="py-20 px-4 bg-gradient-to-br from-stockease-50 to-indigo-50">
-        <div className="container mx-auto max-w-4xl">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4 text-gray-800">
-              Why Choose StockEase?
-            </h2>
-            <p className="text-xl text-gray-600">
-              Join thousands of businesses that trust StockEase for their inventory management
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-2 gap-6">
-            {benefits.map((benefit, index) => (
-              <div key={index} className="flex items-center space-x-3 bg-white p-4 rounded-lg shadow-sm border border-stockease-100">
-                <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                <span className="text-gray-700">{benefit}</span>
+              <div 
+                key={index} 
+                className="group p-6 bg-gradient-to-br from-white to-stockease-50/30 rounded-2xl border border-stockease-100 hover:shadow-xl hover:scale-105 transition-all duration-300"
+              >
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-stockease-500 to-stockease-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                  <feature.icon className="h-6 w-6 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">{feature.title}</h3>
+                <p className="text-gray-600 leading-relaxed">{feature.description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Developers Contact Section */}
-      <section className="py-20 px-4 bg-white">
-        <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-16">
-            <Badge className="mb-6 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700">
-              <Code className="h-3 w-3 mr-1" />
-              Meet the Team
-            </Badge>
-            <h2 className="text-4xl font-bold mb-4 text-gray-800">
-              Our Development Team
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Passionate developers dedicated to building the best inventory management solution for your business
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-8 mb-16">
-            {developers.map((developer, index) => (
-              <Card key={index} className="hover:shadow-lg transition-all duration-300 border-stockease-100 group">
-                <CardHeader className="text-center pb-4">
-                  <div className="w-20 h-20 rounded-full overflow-hidden mb-4 mx-auto group-hover:scale-110 transition-transform duration-300 border-4 border-stockease-200">
-                    <img 
-                      src={developer.image} 
-                      alt={developer.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <CardTitle className="text-xl text-gray-800">{developer.name}</CardTitle>
-                  <CardDescription className="text-stockease-600 font-medium">{developer.role}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600 mb-4 text-center">{developer.bio}</p>
-                  
-                  <div className="flex items-center justify-center space-x-2 mb-4">
-                    <Mail className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">{developer.email}</span>
-                  </div>
-                  
-                  <div className="flex justify-center space-x-4 mb-4">
-                    <div 
-                      className="flex items-center space-x-1 cursor-pointer hover:text-stockease-600 transition-colors"
-                      onClick={() => handleSocialClick('github', developer.github)}
-                    >
-                      <Github className="h-4 w-4" />
-                      <span className="text-sm">GitHub</span>
-                    </div>
-                    <div 
-                      className="flex items-center space-x-1 cursor-pointer hover:text-stockease-600 transition-colors"
-                      onClick={() => handleSocialClick('linkedin', developer.linkedin)}
-                    >
-                      <Linkedin className="h-4 w-4" />
-                      <span className="text-sm">LinkedIn</span>
-                    </div>
-                    <div 
-                      className="flex items-center space-x-1 cursor-pointer hover:text-stockease-600 transition-colors"
-                      onClick={() => handleSocialClick('twitter', developer.twitter)}
-                    >
-                      <Twitter className="h-4 w-4" />
-                      <span className="text-sm">Twitter</span>
-                    </div>
-                  </div>
-                  
-                  <Button 
-                    onClick={() => handleContactDeveloper({ name: developer.name, email: developer.email })}
-                    className="w-full bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600"
-                  >
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Contact {developer.name.split(' ')[0]}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          
-          {/* Contact CTA */}
-          <div className="bg-gradient-to-r from-stockease-50 to-indigo-50 rounded-2xl p-8 text-center">
-            <h3 className="text-2xl font-bold mb-4 text-gray-800">
-              Have Questions or Feedback?
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Our development team is always ready to help and loves hearing from users
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button 
-                onClick={handleContactTeam}
-                className="bg-gradient-to-r from-stockease-600 to-stockease-500 hover:from-stockease-700 hover:to-stockease-600"
-              >
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Contact Developers
-              </Button>
-              <Button variant="outline" className="border-stockease-200 hover:bg-stockease-50">
-                <Github className="h-4 w-4 mr-2" />
-                View Source Code
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* CTA Section */}
-      <section className="py-20 px-4 bg-gradient-to-r from-stockease-600 to-stockease-500">
-        <div className="container mx-auto text-center max-w-4xl">
+      <section className="py-20 px-4 bg-gradient-to-r from-stockease-600 to-stockease-500 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-10 left-10 w-20 h-20 bg-white rounded-full animate-pulse"></div>
+          <div className="absolute top-32 right-20 w-16 h-16 bg-white rounded-full animate-pulse delay-1000"></div>
+          <div className="absolute bottom-20 left-1/3 w-12 h-12 bg-white rounded-full animate-pulse delay-500"></div>
+        </div>
+        
+        <div className="container mx-auto text-center max-w-4xl relative z-10">
           <h2 className="text-4xl font-bold mb-6 text-white">
-            Ready to Transform Your Business?
+            Ready for the 3D Revolution?
           </h2>
           <p className="text-xl text-stockease-100 mb-8">
-            Start your free trial today and see how StockEase can streamline your operations
+            Join the future of inventory management with our immersive 3D interface
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -440,95 +300,6 @@ const Home = () => {
           </div>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-16 px-4">
-        <div className="container mx-auto max-w-6xl">
-          <div className="grid md:grid-cols-4 gap-8 mb-12">
-            <div className="md:col-span-1">
-              <div className="flex items-center space-x-2 mb-6">
-                <div className="flex items-center justify-center rounded-full bg-gradient-to-br from-stockease-600 to-stockease-400 p-2">
-                  <Package className="h-5 w-5 text-white" />
-                </div>
-                <span className="text-xl font-bold">StockEase</span>
-              </div>
-              <p className="text-gray-400 mb-6 leading-relaxed">
-                The complete inventory and sales management solution for modern businesses. 
-                Streamline your operations and boost productivity with our powerful platform.
-              </p>
-              <div className="flex space-x-4">
-                <Globe className="h-5 w-5 text-gray-400 hover:text-stockease-400 cursor-pointer transition-colors" />
-                <Smartphone className="h-5 w-5 text-gray-400 hover:text-stockease-400 cursor-pointer transition-colors" />
-                <Mail className="h-5 w-5 text-gray-400 hover:text-stockease-400 cursor-pointer transition-colors" />
-              </div>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold mb-4 text-lg">Product</h4>
-              <ul className="space-y-3 text-gray-400">
-                <li className="hover:text-stockease-400 cursor-pointer transition-colors">Features</li>
-                <li className="hover:text-stockease-400 cursor-pointer transition-colors">Pricing</li>
-                <li className="hover:text-stockease-400 cursor-pointer transition-colors">Integrations</li>
-                <li className="hover:text-stockease-400 cursor-pointer transition-colors">API Documentation</li>
-                <li className="hover:text-stockease-400 cursor-pointer transition-colors">Mobile App</li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold mb-4 text-lg">Company</h4>
-              <ul className="space-y-3 text-gray-400">
-                <li className="hover:text-stockease-400 cursor-pointer transition-colors">About Us</li>
-                <li className="hover:text-stockease-400 cursor-pointer transition-colors">Blog</li>
-                <li className="hover:text-stockease-400 cursor-pointer transition-colors">Careers</li>
-                <li className="hover:text-stockease-400 cursor-pointer transition-colors">Press</li>
-                <li className="hover:text-stockease-400 cursor-pointer transition-colors">Partners</li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold mb-4 text-lg">Support</h4>
-              <ul className="space-y-3 text-gray-400">
-                <li className="hover:text-stockease-400 cursor-pointer transition-colors">Help Center</li>
-                <li className="hover:text-stockease-400 cursor-pointer transition-colors">Community</li>
-                <li className="hover:text-stockease-400 cursor-pointer transition-colors">Contact Support</li>
-                <li className="hover:text-stockease-400 cursor-pointer transition-colors">System Status</li>
-                <li className="hover:text-stockease-400 cursor-pointer transition-colors">Security</li>
-              </ul>
-            </div>
-          </div>
-          
-          <div className="border-t border-gray-800 pt-8">
-            <div className="flex flex-col md:flex-row items-center justify-between">
-              <div className="flex items-center space-x-6 mb-4 md:mb-0">
-                <div className="flex items-center space-x-2 text-gray-400">
-                  <Mail className="h-4 w-4" />
-                  <span>support@stockease.com</span>
-                </div>
-                <div className="flex items-center space-x-2 text-gray-400">
-                  <Phone className="h-4 w-4" />
-                  <span>+1 (555) 123-4567</span>
-                </div>
-              </div>
-              <div className="flex items-center space-x-6 text-gray-400 text-sm">
-                <span className="hover:text-stockease-400 cursor-pointer transition-colors">Privacy Policy</span>
-                <span className="hover:text-stockease-400 cursor-pointer transition-colors">Terms of Service</span>
-                <span className="hover:text-stockease-400 cursor-pointer transition-colors">Cookie Policy</span>
-              </div>
-            </div>
-            <div className="text-center text-gray-400 mt-8 pt-8 border-t border-gray-800">
-              <p>&copy; 2024 StockEase. All rights reserved. Made with <Heart className="h-4 w-4 inline text-red-500" /> for modern businesses.</p>
-            </div>
-          </div>
-        </div>
-      </footer>
-
-      {/* Contact Form Modal */}
-      <DeveloperContactForm
-        isOpen={contactFormOpen}
-        onClose={() => setContactFormOpen(false)}
-        developerName={selectedDeveloper?.name || "Developer Team"}
-        developerEmail={selectedDeveloper?.email || "team@stockease.com"}
-      />
     </div>
   );
 };
