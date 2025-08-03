@@ -1,10 +1,7 @@
 
-import { Suspense } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Text, Box, Sphere, Environment, Float, PerspectiveCamera } from '@react-three/drei';
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
 import { 
   Package, 
   ArrowRight,
@@ -13,77 +10,14 @@ import {
   Users, 
   TrendingUp, 
   Shield, 
-  Zap
+  Zap,
+  Github,
+  Linkedin,
+  Twitter,
+  Instagram
 } from "lucide-react";
-
-// 3D Components
-function FloatingBox({ position, color, ...props }: any) {
-  return (
-    <Float speed={1.4} rotationIntensity={1} floatIntensity={2}>
-      <Box position={position} {...props}>
-        <meshStandardMaterial color={color} />
-      </Box>
-    </Float>
-  );
-}
-
-function FloatingSphere({ position, color, ...props }: any) {
-  return (
-    <Float speed={2} rotationIntensity={0.5} floatIntensity={1.5}>
-      <Sphere position={position} {...props}>
-        <meshStandardMaterial color={color} />
-      </Sphere>
-    </Float>
-  );
-}
-
-function Scene() {
-  return (
-    <>
-      <PerspectiveCamera makeDefault position={[0, 0, 8]} />
-      <OrbitControls enablePan={false} enableZoom={false} maxPolarAngle={Math.PI / 2} />
-      
-      <Environment preset="city" />
-      
-      <ambientLight intensity={0.5} />
-      <pointLight position={[10, 10, 10]} />
-      
-      {/* Main central logo/text */}
-      <Text
-        position={[0, 1, 0]}
-        fontSize={1.2}
-        color="#0284c7"
-        anchorX="center"
-        anchorY="middle"
-        font="/fonts/Inter-Bold.woff"
-      >
-        StockEase
-      </Text>
-      
-      <Text
-        position={[0, 0.2, 0]}
-        fontSize={0.3}
-        color="#64748b"
-        anchorX="center"
-        anchorY="middle"
-      >
-        Inventory Management System
-      </Text>
-      
-      {/* Floating 3D elements */}
-      <FloatingBox position={[-3, 2, -1]} color="#0ea5e9" args={[0.8, 0.8, 0.8]} />
-      <FloatingSphere position={[3, 2, -1]} color="#8b5cf6" args={[0.5]} />
-      <FloatingBox position={[-2, -1.5, -2]} color="#10b981" args={[0.6, 1.2, 0.6]} />
-      <FloatingSphere position={[2.5, -1, -1]} color="#f59e0b" args={[0.4]} />
-      <FloatingBox position={[0, -2.5, -3]} color="#ef4444" args={[1, 0.4, 1]} />
-      <FloatingSphere position={[-3.5, 0, -2]} color="#06b6d4" args={[0.3]} />
-      
-      {/* Background elements */}
-      <FloatingBox position={[4, 3, -4]} color="#0284c7" args={[0.4, 0.4, 0.4]} />
-      <FloatingSphere position={[-4, -2, -4]} color="#7c3aed" args={[0.3]} />
-    </>
-  );
-}
+import Scene3D from "@/components/Scene3D";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const Home = () => {
   const { currentUser } = useAuth();
@@ -118,6 +52,49 @@ const Home = () => {
       icon: Zap,
       title: "Real-time Updates",
       description: "Live synchronization across all devices"
+    }
+  ];
+
+  const developers = [
+    {
+      name: "Megharaj Dandgavhal",
+      role: "Full Stack Developer",
+      image: "/lovable-uploads/6e46d40b-d83d-4d46-bc29-df6b1f071c18.png",
+      social: {
+        github: "https://github.com/megharaj",
+        linkedin: "https://linkedin.com/in/megharaj-dandgavhal",
+        twitter: "https://twitter.com/megharaj"
+      }
+    },
+    {
+      name: "Samruddhi Gore",
+      role: "Frontend Developer",
+      image: "/lovable-uploads/6e46d40b-d83d-4d46-bc29-df6b1f071c18.png",
+      social: {
+        github: "https://github.com/samruddhi",
+        linkedin: "https://linkedin.com/in/samruddhi-gore",
+        instagram: "https://instagram.com/samruddhi"
+      }
+    },
+    {
+      name: "Samyak Hirap",
+      role: "Backend Developer",
+      image: "/lovable-uploads/6e46d40b-d83d-4d46-bc29-df6b1f071c18.png",
+      social: {
+        github: "https://github.com/samyak",
+        linkedin: "https://linkedin.com/in/samyak-hirap",
+        twitter: "https://twitter.com/samyak"
+      }
+    },
+    {
+      name: "Tanisha Godha",
+      role: "UI/UX Designer",
+      image: "/lovable-uploads/6e46d40b-d83d-4d46-bc29-df6b1f071c18.png",
+      social: {
+        github: "https://github.com/tanisha",
+        linkedin: "https://linkedin.com/in/tanisha-godha",
+        instagram: "https://instagram.com/tanisha"
+      }
     }
   ];
 
@@ -159,13 +136,9 @@ const Home = () => {
       {/* 3D Hero Section */}
       <section className="relative h-screen flex items-center">
         {/* 3D Canvas Background */}
-        <div className="absolute inset-0 z-0">
-          <Canvas>
-            <Suspense fallback={null}>
-              <Scene />
-            </Suspense>
-          </Canvas>
-        </div>
+        <ErrorBoundary>
+          <Scene3D />
+        </ErrorBoundary>
         
         {/* Hero Content Overlay */}
         <div className="relative z-10 container mx-auto px-4 text-center">
@@ -251,6 +224,82 @@ const Home = () => {
                 </div>
                 <h3 className="text-xl font-bold text-gray-800 mb-2">{feature.title}</h3>
                 <p className="text-gray-600 leading-relaxed">{feature.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Development Team Section */}
+      <section className="py-20 px-4 bg-gradient-to-br from-gray-50 to-stockease-50/30">
+        <div className="container mx-auto max-w-6xl">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold mb-4 text-gray-800">
+              Meet Our Development Team
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              The talented individuals behind StockEase
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {developers.map((developer, index) => (
+              <div 
+                key={index} 
+                className="group p-6 bg-white rounded-2xl border border-stockease-100 hover:shadow-xl hover:scale-105 transition-all duration-300"
+              >
+                <div className="text-center mb-4">
+                  <img
+                    src={developer.image}
+                    alt={developer.name}
+                    className="w-20 h-20 rounded-full mx-auto mb-4 object-cover border-4 border-stockease-100 group-hover:border-stockease-300 transition-colors"
+                  />
+                  <h3 className="text-xl font-bold text-gray-800 mb-1">{developer.name}</h3>
+                  <p className="text-stockease-600 font-medium">{developer.role}</p>
+                </div>
+                
+                <div className="flex justify-center space-x-3">
+                  {developer.social.github && (
+                    <a
+                      href={developer.social.github}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 rounded-full bg-gray-100 hover:bg-stockease-100 transition-colors"
+                    >
+                      <Github className="h-4 w-4 text-gray-600 hover:text-stockease-600" />
+                    </a>
+                  )}
+                  {developer.social.linkedin && (
+                    <a
+                      href={developer.social.linkedin}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 rounded-full bg-blue-100 hover:bg-blue-200 transition-colors"
+                    >
+                      <Linkedin className="h-4 w-4 text-blue-600" />
+                    </a>
+                  )}
+                  {developer.social.twitter && (
+                    <a
+                      href={developer.social.twitter}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 rounded-full bg-blue-100 hover:bg-blue-200 transition-colors"
+                    >
+                      <Twitter className="h-4 w-4 text-blue-600" />
+                    </a>
+                  )}
+                  {developer.social.instagram && (
+                    <a
+                      href={developer.social.instagram}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 rounded-full bg-pink-100 hover:bg-pink-200 transition-colors"
+                    >
+                      <Instagram className="h-4 w-4 text-pink-600" />
+                    </a>
+                  )}
+                </div>
               </div>
             ))}
           </div>
